@@ -23,7 +23,10 @@ type RpcEvent = JsonAgentSessionEvent | {
 type PendingRequest = {
 	resolve: (data: unknown) => void;
 	reject: (error: Error) => void;
+	timeout: NodeJS.Timeout;
 };
+
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export type ChildExit = {
 	code: number | null;
@@ -98,7 +101,8 @@ export class RpcChild {
 		child.stderr?.on("data", (chunk: Buffer | string) => {
 			this.stderr += chunk.toString();
 		});
-		child.on("error", () => undefined);
+		child.on("error", (error) => this.rejectPending(error));
+		child.stdin?.on("error", (error) => this.rejectPending(new Error(`Subagent stdin error: ${error.message}`)));
 		child.once("close", (code, signal) => this.handleExit({ code, signal }));
 
 		const result = await new Promise<{ error?: Error }>((resolve) => {
@@ -158,17 +162,21 @@ export class RpcChild {
 		if (!child || child.exitCode !== null || !child.stdin) throw new Error("Subagent process is not running");
 
 		const id = `pi-subagents-${++this.requestNumber}`;
+		let request!: PendingRequest;
 		const pending = new Promise<unknown>((resolve, reject) => {
-			this.pending.set(id, {
-				resolve,
-				reject,
-			});
+			const timeout = setTimeout(() => {
+				if (this.pending.get(id) !== request) return;
+				this.pending.delete(id);
+				reject(new Error(`Timed out waiting for RPC response to ${String(command.type)}`));
+			}, REQUEST_TIMEOUT_MS);
+			request = { resolve, reject, timeout };
+			this.pending.set(id, request);
 		});
 
 		try {
 			child.stdin.write(`${JSON.stringify({ ...command, id })}\n`);
 		} catch (error) {
-			this.pending.delete(id);
+			if (this.pending.delete(id)) clearTimeout(request.timeout);
 			throw error;
 		}
 
@@ -202,6 +210,7 @@ export class RpcChild {
 			const pending = this.pending.get(id);
 			if (!pending) return;
 			this.pending.delete(id);
+			clearTimeout(pending.timeout);
 			const response = value as unknown as RpcResponse;
 			if (response.success) pending.resolve(response.data);
 			else pending.reject(new Error(response.error ?? `RPC command failed: ${response.command}`));
@@ -240,8 +249,15 @@ export class RpcChild {
 		const error = new Error(
 			`Subagent process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
 		);
-		for (const pending of this.pending.values()) pending.reject(error);
-		this.pending.clear();
+		this.rejectPending(error);
 		for (const listener of this.exitListeners) listener(exit);
+	}
+
+	private rejectPending(error: Error): void {
+		for (const pending of this.pending.values()) {
+			clearTimeout(pending.timeout);
+			pending.reject(error);
+		}
+		this.pending.clear();
 	}
 }
