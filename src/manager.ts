@@ -60,6 +60,7 @@ function errorText(error: unknown): string {
 
 export class SubagentManager {
 	private readonly agents = new Map<string, SubagentRecord>();
+	private readonly starts = new Set<Promise<unknown>>();
 	private shuttingDown = false;
 
 	constructor(private readonly options: ManagerOptions) {}
@@ -94,18 +95,12 @@ export class SubagentManager {
 		this.agents.set(id, agent);
 		this.options.onUpdate();
 
+		const operation = this.launch(agent, prompt);
+		this.starts.add(operation);
 		try {
-			await this.startProcess(agent);
-			agent.status = "running";
-			this.options.onUpdate();
-			await agent.child!.prompt(delegatedTask(prompt, agent.cwdExplicit ? agent.cwd : undefined));
-			return this.snapshot(agent);
-		} catch (error) {
-			agent.stopRequested = true;
-			if (agent.child?.isAlive()) await agent.child.stop().catch(() => undefined);
-			agent.stopRequested = false;
-			this.fail(agent, errorText(error));
-			throw new Error(`Could not start ${id}: ${errorText(error)}`);
+			return await operation;
+		} finally {
+			this.starts.delete(operation);
 		}
 	}
 
@@ -172,12 +167,30 @@ export class SubagentManager {
 
 	async shutdown(): Promise<void> {
 		this.shuttingDown = true;
-		await Promise.all(
-			Array.from(this.agents.values()).map(async (agent) => {
+		await Promise.all([
+			...Array.from(this.agents.values()).map(async (agent) => {
 				agent.stopRequested = true;
 				if (agent.child?.isAlive()) await agent.child.stop();
 			}),
-		);
+			...Array.from(this.starts, (start) => start.catch(() => undefined)),
+		]);
+	}
+
+	private async launch(agent: SubagentRecord, prompt: string): Promise<SubagentSnapshot> {
+		try {
+			await this.startProcess(agent);
+			if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
+			agent.status = "running";
+			this.options.onUpdate();
+			await agent.child!.prompt(delegatedTask(prompt, agent.cwdExplicit ? agent.cwd : undefined));
+			return this.snapshot(agent);
+		} catch (error) {
+			agent.stopRequested = true;
+			if (agent.child?.isAlive()) await agent.child.stop().catch(() => undefined);
+			agent.stopRequested = false;
+			this.fail(agent, errorText(error));
+			throw new Error(`Could not start ${agent.id}: ${errorText(error)}`);
+		}
 	}
 
 	private async startProcess(agent: SubagentRecord): Promise<void> {
@@ -190,6 +203,7 @@ export class SubagentManager {
 
 	private eventListener(agent: SubagentRecord): ChildEventListener {
 		return (event) => {
+			if (this.shuttingDown) return;
 			switch (event.type) {
 				case "turn_start":
 					agent.turns++;

@@ -39,7 +39,9 @@ const mocks = vi.hoisted(() => {
 			return () => this.exitListeners.delete(listener);
 		}
 
-		async start(): Promise<void> {}
+		async start(): Promise<void> {
+			if (startGate) await startGate;
+		}
 
 		async prompt(message: string): Promise<void> {
 			this.prompts.push(message);
@@ -72,7 +74,17 @@ const mocks = vi.hoisted(() => {
 	}
 
 	const children: FakeRpcChild[] = [];
-	return { children, FakeRpcChild };
+	let startGate: Promise<void> | undefined;
+	return {
+		children,
+		FakeRpcChild,
+		get startGate() {
+			return startGate;
+		},
+		set startGate(value: Promise<void> | undefined) {
+			startGate = value;
+		},
+	};
 });
 
 vi.mock("../src/rpc.ts", () => ({ RpcChild: mocks.FakeRpcChild }));
@@ -92,6 +104,7 @@ function createManager(settled: SubagentSnapshot[] = []): SubagentManager {
 
 beforeEach(() => {
 	mocks.children.length = 0;
+	mocks.startGate = undefined;
 });
 
 describe("subagent manager", () => {
@@ -158,6 +171,25 @@ describe("subagent manager", () => {
 		expect(child.abortCalls).toBe(1);
 		expect(child.stopCalls).toBe(1);
 	});
+
+	it("does not let shutdown race an in-flight start", async () => {
+		let releaseStart!: () => void;
+		mocks.startGate = new Promise<void>((resolve) => {
+			releaseStart = resolve;
+		});
+		const manager = createManager();
+		const starting = manager.start(context, "work", {});
+		await Promise.resolve();
+		const child = mocks.children[0];
+
+		const shuttingDown = manager.shutdown();
+		const startingFailure = expect(starting).rejects.toThrow("Could not start");
+		releaseStart();
+
+		await startingFailure;
+		await shuttingDown;
+		expect(child.prompts).toEqual([]);
+		expect(manager.list()[0].status).toBe("failed");
 
 	it("resumes a settled child without creating another process", async () => {
 		const manager = createManager();
