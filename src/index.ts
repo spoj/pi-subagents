@@ -35,26 +35,9 @@ function childToolError(): never {
 	throw new Error("Subagent orchestration tools are unavailable inside a delegated subagent");
 }
 
-function renderAgent(agent: SubagentSnapshot): string {
-	const symbol =
-		agent.status === "running" || agent.status === "starting"
-			? "⏳"
-			: agent.status === "completed"
-				? "✓"
-				: agent.status === "stopped"
-					? "■"
-					: "✗";
-	const activity = agent.activity ? ` · ${agent.activity}` : "";
-	return `${symbol} ${agent.id} ${agent.status}${activity} · ${agent.transcriptPath}`;
-}
-
 function renderWidget(ctx: ExtensionContext, manager: SubagentManager): void {
-	const agents = manager.list();
-	if (agents.length === 0) {
-		ctx.ui.setWidget(WIDGET_KEY, undefined);
-		return;
-	}
-	ctx.ui.setWidget(WIDGET_KEY, ["Subagents", ...agents.map(renderAgent)]);
+	const running = manager.list().filter((agent) => agent.status === "starting" || agent.status === "running").length;
+	ctx.ui.setWidget(WIDGET_KEY, running > 0 ? [`[${running}] agents running`] : undefined);
 }
 
 function resultText(agent: SubagentSnapshot): string {
