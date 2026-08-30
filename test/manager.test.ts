@@ -235,6 +235,7 @@ describe("subagent manager", () => {
 		await shuttingDown;
 		expect(child.prompts).toEqual([]);
 		expect(manager.list()[0].status).toBe("failed");
+	});
 
 	it("resumes a settled child without creating another process", async () => {
 		const manager = createManager();
