@@ -11,6 +11,7 @@ import {
 
 const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
 const WIDGET_KEY = "pi-subagents";
+const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. If you see a user message containing "<delegated-task>" it indicates you are a subagent spawned by that task. If you are unsure, you can call AgentStop with an empty id to determine whether orchestration tools are available.`;
 
 const agentTool = Type.Object({
 	cwd: Type.Optional(
@@ -153,6 +154,10 @@ export default function piSubagents(pi: ExtensionAPI): void {
 	});
 
 	registerTools(pi, manager);
+
+	pi.on("before_agent_start", (event) => ({
+		systemPrompt: `${event.systemPrompt}\n\n${DELEGATION_SYSTEM_PROMPT}`,
+	}));
 
 	pi.on("session_start", (_event, ctx) => {
 		uiContext = ctx;
