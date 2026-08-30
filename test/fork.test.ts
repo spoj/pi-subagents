@@ -70,6 +70,20 @@ describe("fork creation", () => {
 		expect(entries.some((entry) => JSON.stringify(entry).includes("call-agent"))).toBe(false);
 	});
 
+	it("names the forked session", () => {
+		const parent = makeSession();
+		const childPath = createForkedSession(parent, undefined, "delegate the implementation");
+		const entries = readFileSync(childPath, "utf8")
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+
+		expect(entries.find((entry) => entry.type === "session_info")).toMatchObject({
+			type: "session_info",
+			name: "delegate the implementation",
+		});
+	});
+
 	it("uses a resolved explicit cwd in the forked session header", () => {
 		const parent = makeSession();
 		const childPath = createForkedSession(parent, "worktree");

@@ -47,7 +47,11 @@ function materializeSession(session: SessionManager, sessionFile: string): void 
 	});
 }
 
-export function createForkedSession(sessionManager: ExtensionContext["sessionManager"], cwd?: string): string {
+export function createForkedSession(
+	sessionManager: ExtensionContext["sessionManager"],
+	cwd?: string,
+	name?: string,
+): string {
 	const parentFile = sessionManager.getSessionFile();
 	if (!parentFile) throw new Error("Agent requires a persisted parent session");
 
@@ -70,6 +74,7 @@ export function createForkedSession(sessionManager: ExtensionContext["sessionMan
 
 	if (!childFile) throw new Error("Could not create a forked session");
 	materializeSession(source, childFile);
+	if (name) SessionManager.open(childFile).appendSessionInfo(name);
 	return resolve(childFile);
 }
 

@@ -81,7 +81,7 @@ export class SubagentManager {
 		const cwdExplicit = cwd !== undefined;
 		const agentCwd = cwdExplicit ? resolve(ctx.cwd, cwd) : ctx.cwd;
 		const id = newId(this.agents);
-		const transcriptPath = createForkedSession(ctx.sessionManager, cwdExplicit ? agentCwd : undefined);
+		const transcriptPath = createForkedSession(ctx.sessionManager, cwdExplicit ? agentCwd : undefined, prompt);
 		const agent: SubagentRecord = {
 			id,
 			transcriptPath,
