@@ -193,6 +193,7 @@ export class RpcChild {
 	}
 
 	private consumeStdout(chunk: Buffer | string): void {
+		if (!this.process) return;
 		this.buffer += this.decoder.write(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
 		while (true) {
 			const newline = this.buffer.indexOf("\n");
@@ -205,7 +206,7 @@ export class RpcChild {
 	}
 
 	private processLine(line: string): void {
-		if (!line.trim()) return;
+		if (!this.process || !line.trim()) return;
 		let value: Record<string, unknown>;
 		try {
 			value = JSON.parse(line) as Record<string, unknown>;

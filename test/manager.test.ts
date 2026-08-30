@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => {
 
 		async steer(message: string): Promise<void> {
 			this.prompts.push(message);
+			if (steerGate) await steerGate;
 		}
 
 		abortHangs = false;
@@ -77,6 +78,7 @@ const mocks = vi.hoisted(() => {
 
 	const children: FakeRpcChild[] = [];
 	let startGate: Promise<void> | undefined;
+	let steerGate: Promise<void> | undefined;
 	let startError: Error | undefined;
 	let promptError: Error | undefined;
 	return {
@@ -87,6 +89,12 @@ const mocks = vi.hoisted(() => {
 		},
 		set startGate(value: Promise<void> | undefined) {
 			startGate = value;
+		},
+		get steerGate() {
+			return steerGate;
+		},
+		set steerGate(value: Promise<void> | undefined) {
+			steerGate = value;
 		},
 		get startError() {
 			return startError;
@@ -121,6 +129,7 @@ function createManager(settled: SubagentSnapshot[] = []): SubagentManager {
 beforeEach(() => {
 	mocks.children.length = 0;
 	mocks.startGate = undefined;
+	mocks.steerGate = undefined;
 	mocks.startError = undefined;
 	mocks.promptError = undefined;
 });
@@ -146,6 +155,53 @@ describe("subagent manager", () => {
 		expect(started.status).toBe("running");
 		expect(manager.list()[0]).toMatchObject({ status: "completed", turns: 1, lastOutput: "done" });
 		expect(settled).toHaveLength(1);
+	});
+
+	it("does not report stale output after an empty assistant message", async () => {
+		const manager = createManager();
+		await manager.start(context, "work", {});
+		const child = mocks.children[0];
+
+		child.emit({
+			type: "message_end",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "old output" }],
+				stopReason: "stop",
+			},
+		});
+		child.emit({
+			type: "message_end",
+			message: { role: "assistant", content: [], stopReason: "stop" },
+		});
+
+		expect(manager.list()[0]).not.toHaveProperty("lastOutput");
+	});
+
+	it("waits for queued operations during shutdown without settling them", async () => {
+		const settled: SubagentSnapshot[] = [];
+		const manager = createManager(settled);
+		const started = await manager.start(context, "work", {});
+		let releaseSteer!: () => void;
+		mocks.steerGate = new Promise<void>((resolve) => {
+			releaseSteer = resolve;
+		});
+		const steering = manager.steer(started.id, "steer");
+		await Promise.resolve();
+		const stopping = manager.stop(started.id);
+
+		let shutdownFinished = false;
+		const shuttingDown = manager.shutdown().then(() => {
+			shutdownFinished = true;
+		});
+		await Promise.resolve();
+		expect(shutdownFinished).toBe(false);
+
+		releaseSteer();
+		await steering;
+		await stopping;
+		await shuttingDown;
+		expect(settled).toHaveLength(0);
 	});
 
 	it("reports an unexpected child exit as a failure", async () => {

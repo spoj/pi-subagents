@@ -172,7 +172,7 @@ export class SubagentManager {
 			agent.status = "stopped";
 			agent.activity = undefined;
 			this.options.onUpdate();
-			if (wasActive) this.settle(agent);
+			if (wasActive && !this.shuttingDown) this.settle(agent);
 			return this.snapshot(agent);
 		});
 	}
@@ -184,6 +184,7 @@ export class SubagentManager {
 				agent.stopRequested = true;
 				if (agent.child?.isAlive()) await agent.child.stop();
 			}),
+			...Array.from(this.agents.values(), (agent) => agent.operation),
 			...Array.from(this.starts, (start) => start.catch(() => undefined)),
 		]);
 	}
@@ -230,7 +231,7 @@ export class SubagentManager {
 					break;
 				case "message_end":
 					if (event.message.role === "assistant") {
-						agent.lastOutput = textFromAssistant(event.message) || agent.lastOutput;
+						agent.lastOutput = textFromAssistant(event.message) || undefined;
 						agent.lastStopReason = event.message.stopReason;
 						agent.error = event.message.errorMessage;
 					}

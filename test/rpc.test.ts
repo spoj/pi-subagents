@@ -33,6 +33,19 @@ describe("RPC child", () => {
 		expect(child.isAlive()).toBe(false);
 	});
 
+	it("ignores events after the child exits", () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+		const events: unknown[] = [];
+		child.onEvent((event) => events.push(event));
+		internals.process = {};
+		internals.handleExit({ code: 1, signal: null });
+
+		internals.processLine(JSON.stringify({ type: "turn_start" }));
+
+		expect(events).toEqual([]);
+	});
+
 	it("resolves stop after a forced kill even if stdio never closes", async () => {
 		vi.useFakeTimers();
 		try {
