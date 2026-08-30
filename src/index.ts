@@ -131,7 +131,7 @@ export default function piSubagents(pi: ExtensionAPI): void {
 					display: true,
 					details: agent,
 				},
-				{ deliverAs: "followUp", triggerTurn: true },
+				{ deliverAs: "steer", triggerTurn: true },
 			);
 		},
 	});
