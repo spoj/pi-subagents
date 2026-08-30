@@ -129,24 +129,18 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 export default function piSubagents(pi: ExtensionAPI): void {
 	let uiContext: ExtensionContext | undefined;
 	let manager: SubagentManager;
-	let pendingSettled: SubagentSnapshot[] = [];
 	manager = new SubagentManager({
 		onUpdate: () => {
 			if (uiContext) renderWidget(uiContext, manager);
 		},
 		onSettled: (agent) => {
 			if (CHILD_PROCESS) return;
-			pendingSettled.push(agent);
-			if (manager.list().some(isActive)) return;
-
-			const settled = pendingSettled;
-			pendingSettled = [];
 			pi.sendMessage(
 				{
 					customType: "pi-subagents",
-					content: settled.map(resultText).join("\n\n"),
+					content: resultText(agent),
 					display: true,
-					details: settled,
+					details: agent,
 				},
 				{ deliverAs: "steer", triggerTurn: true },
 			);
