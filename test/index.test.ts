@@ -32,7 +32,31 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe("subagent completion notifications", () => {
+describe("subagent tools", () => {
+	it("exposes task and nests advanced options", async () => {
+		delete process.env.PI_SUBAGENT_CHILD;
+		const { default: piSubagents } = await import("../src/index.ts");
+		const pi = {
+			registerTool: vi.fn(),
+			on: vi.fn(),
+			sendMessage: vi.fn(),
+		};
+
+		piSubagents(pi as never);
+		const agentTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Agent")?.[0];
+		const properties = agentTool.parameters.properties;
+
+		expect(properties).toHaveProperty("task");
+		expect(properties).toHaveProperty("advanced_options");
+		expect(properties).not.toHaveProperty("prompt");
+		expect(properties).not.toHaveProperty("model");
+		expect(properties).not.toHaveProperty("thinkingLevel");
+		expect(properties).not.toHaveProperty("cwd");
+		expect(properties.advanced_options.properties).toEqual(
+			expect.objectContaining({ model: expect.any(Object), thinkingLevel: expect.any(Object), cwd: expect.any(Object) }),
+		);
+	});
+
 	it("delivers each settled result while sibling agents are still active", async () => {
 		delete process.env.PI_SUBAGENT_CHILD;
 		const { default: piSubagents } = await import("../src/index.ts");

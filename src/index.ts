@@ -11,24 +11,28 @@ import {
 
 const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
 const WIDGET_KEY = "pi-subagents";
-const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Your standard calling method should just be Agent({prompt}). Add other options only if they are absoluately necessary or explicitly required by user. If you see a user message containing "<delegated-task>" it indicates you are a subagent spawned by that task. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
+const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Your standard calling method should just be Agent({ task }). Add advanced_options only when explicitly necessary or requested by the user. If you see a user message containing "<delegated-task>" it indicates you are a subagent spawned by that task. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
 
 const agentTool = Type.Object({
-	cwd: Type.Optional(
-		Type.String({
-			description:
-				"Omit this unless the user explicitly requests a different working directory or the task requires one; relative paths use the parent working directory",
+	task: Type.String({ description: "The task for the forked subagent to execute" }),
+	advanced_options: Type.Optional(
+		Type.Object({
+			cwd: Type.Optional(
+				Type.String({
+					description:
+						"Omit this unless the user explicitly requests a different working directory or the task requires one; relative paths use the parent working directory",
+				}),
+			),
+			model: Type.Optional(
+				Type.String({ description: "Omit this unless the user explicitly requests a different model" }),
+			),
+			thinkingLevel: Type.Optional(
+				StringEnum(THINKING_LEVELS, {
+					description: "Omit this unless the user explicitly requests a different thinking level",
+				}),
+			),
 		}),
 	),
-	model: Type.Optional(
-		Type.String({ description: "Omit this unless the user explicitly requests a different model" }),
-	),
-	thinkingLevel: Type.Optional(
-		StringEnum(THINKING_LEVELS, {
-			description: "Omit this unless the user explicitly requests a different thinking level",
-		}),
-	),
-	prompt: Type.String({ description: "The task for the forked subagent to execute" }),
 });
 
 const controlTool = Type.Object({
@@ -70,18 +74,18 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 		name: "Agent",
 		label: "Agent",
 		description:
-			"Start an asynchronous subagent. Do not set cwd, model, or thinkingLevel unless the user explicitly requests it or the task cannot be completed without it. The result includes its ID and transcript path.",
+			"Start an asynchronous subagent. Use Agent({ task }) by default; put cwd, model, or thinkingLevel under advanced_options only when necessary. The result includes its ID and transcript path.",
 		parameters: agentTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
 			const launchOptions = resolveSubagentOptions(
 				{
-					model: params.model,
-					thinkingLevel: params.thinkingLevel as SubagentThinkingLevel | undefined,
+					model: params.advanced_options?.model,
+					thinkingLevel: params.advanced_options?.thinkingLevel as SubagentThinkingLevel | undefined,
 				},
 				loadSubagentDefaults(),
 			);
-			const agent = await manager.start(ctx, params.prompt, launchOptions, params.cwd);
+			const agent = await manager.start(ctx, params.task, launchOptions, params.advanced_options?.cwd);
 			return {
 				content: [{ type: "text", text: `Subagent started.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }],
 				details: agent,

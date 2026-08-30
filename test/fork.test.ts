@@ -43,7 +43,7 @@ function makeSession(withPreviousAssistant = true): SessionManager {
 				type: "toolCall",
 				id: "call-agent",
 				name: "Agent",
-				arguments: { prompt: "work" },
+				arguments: { task: "work" },
 			},
 		]),
 	);
