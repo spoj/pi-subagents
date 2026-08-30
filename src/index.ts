@@ -11,7 +11,7 @@ import {
 
 const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
 const WIDGET_KEY = "pi-subagents";
-const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Use Agent({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. If you see a user message containing "<delegated-task>" it indicates you are a subagent spawned by that task. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
+const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Use Agent({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. If you see a user message containing "<delegated-task>" it marks the task for this delegated subagent. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
 
 const agentTool = Type.Object({
 	task: Type.String({ description: "The task for the forked subagent to execute" }),
