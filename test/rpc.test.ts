@@ -1,15 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RpcChild, type ChildExit } from "../src/rpc.ts";
 
 type RpcChildInternals = {
 	process: object | undefined;
 	consumeStdout: (chunk: Buffer) => void;
+	flushStdout: () => void;
 	handleExit: (exit: ChildExit) => void;
 	processLine: (line: string) => void;
 };
 
 describe("RPC child", () => {
-	it("flushes a pending decoder tail when the process exits", () => {
+	it("flushes a pending decoder tail when stdout ends", () => {
 		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
 		const internals = child as unknown as RpcChildInternals;
 		const lines: string[] = [];
@@ -17,8 +18,41 @@ describe("RPC child", () => {
 		internals.process = {};
 		internals.processLine = (line) => lines.push(line);
 		internals.consumeStdout(Buffer.from([0xc3]));
-		internals.handleExit({ code: 0, signal: null });
+		internals.flushStdout();
 
 		expect(lines).toEqual(["�"]);
+	});
+
+	it("stops tracking a child when it exits before its stdio closes", () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+		internals.process = { exitCode: null };
+
+		internals.handleExit({ code: 1, signal: null });
+
+		expect(child.isAlive()).toBe(false);
+	});
+
+	it("resolves stop after a forced kill even if stdio never closes", async () => {
+		vi.useFakeTimers();
+		try {
+			const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+			const internals = child as unknown as RpcChildInternals;
+			const signals: NodeJS.Signals[] = [];
+			internals.process = {
+				exitCode: null,
+				once: () => undefined,
+				kill: (signal: NodeJS.Signals) => signals.push(signal),
+			} as never;
+
+			const stopping = child.stop();
+			await vi.advanceTimersByTimeAsync(1000);
+			expect(signals).toEqual(["SIGTERM", "SIGKILL"]);
+			await vi.advanceTimersByTimeAsync(1000);
+			await stopping;
+			expect(child.isAlive()).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

@@ -159,11 +159,7 @@ export class SubagentManager {
 			const wasActive = agent.status === "starting" || agent.status === "running";
 			agent.stopRequested = true;
 			if (agent.child?.isAlive()) {
-				try {
-					await agent.child.abort();
-				} catch {
-					// The process may have exited between the status check and abort.
-				}
+				void agent.child.abort().catch(() => undefined);
 				await agent.child.stop();
 			}
 			agent.status = "stopped";

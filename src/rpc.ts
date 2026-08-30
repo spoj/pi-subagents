@@ -98,12 +98,13 @@ export class RpcChild {
 		this.process = child;
 
 		child.stdout?.on("data", (chunk: Buffer | string) => this.consumeStdout(chunk));
+		child.stdout?.once("end", () => this.flushStdout());
 		child.stderr?.on("data", (chunk: Buffer | string) => {
 			this.stderr += chunk.toString();
 		});
 		child.on("error", (error) => this.rejectPending(error));
 		child.stdin?.on("error", (error) => this.rejectPending(new Error(`Subagent stdin error: ${error.message}`)));
-		child.once("close", (code, signal) => this.handleExit({ code, signal }));
+		child.once("exit", (code, signal) => this.handleExit({ code, signal }));
 
 		const result = await new Promise<{ error?: Error }>((resolve) => {
 			const onSpawn = () => {
@@ -134,13 +135,21 @@ export class RpcChild {
 				return;
 			}
 
-			const timeout = setTimeout(() => {
-				if (child.exitCode === null) child.kill("SIGKILL");
-			}, 1000);
-			child.once("close", () => {
-				clearTimeout(timeout);
+			let forceKillTimeout: NodeJS.Timeout;
+			let finishTimeout: NodeJS.Timeout | undefined;
+			const finish = () => {
+				clearTimeout(forceKillTimeout);
+				if (finishTimeout) clearTimeout(finishTimeout);
 				resolve();
-			});
+			};
+			child.once("exit", finish);
+			forceKillTimeout = setTimeout(() => {
+				if (child.exitCode === null) child.kill("SIGKILL");
+				finishTimeout = setTimeout(() => {
+					if (this.process === child) this.handleExit({ code: null, signal: "SIGKILL" });
+					finish();
+				}, 1000);
+			}, 1000);
 			child.kill("SIGTERM");
 		});
 	}
@@ -239,11 +248,14 @@ export class RpcChild {
 		}
 	}
 
+	private flushStdout(): void {
+		this.buffer += this.decoder.end();
+		if (this.buffer.trim()) this.processLine(this.buffer);
+	}
+
 	private handleExit(exit: ChildExit): void {
 		if (this.process === undefined) return;
 		this.process = undefined;
-		this.buffer += this.decoder.end();
-		if (this.buffer.trim()) this.processLine(this.buffer);
 		const error = new Error(
 			`Subagent process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
 		);

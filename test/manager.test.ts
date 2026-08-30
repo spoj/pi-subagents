@@ -49,8 +49,11 @@ const mocks = vi.hoisted(() => {
 			this.prompts.push(message);
 		}
 
+		abortHangs = false;
+
 		async abort(): Promise<void> {
 			this.abortCalls++;
+			if (this.abortHangs) await new Promise(() => undefined);
 		}
 
 		async stop(): Promise<void> {
@@ -141,6 +144,19 @@ describe("subagent manager", () => {
 		expect(child.abortCalls).toBe(1);
 		expect(child.stopCalls).toBe(1);
 		expect(settled).toHaveLength(1);
+	});
+
+	it("stops without waiting for an unresponsive abort request", async () => {
+		const manager = createManager();
+		const started = await manager.start(context, "work", {});
+		const child = mocks.children[0];
+		child.abortHangs = true;
+
+		const stopped = await manager.stop(started.id);
+
+		expect(stopped.status).toBe("stopped");
+		expect(child.abortCalls).toBe(1);
+		expect(child.stopCalls).toBe(1);
 	});
 
 	it("resumes a settled child without creating another process", async () => {
