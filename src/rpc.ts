@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { SubagentLaunchOptions } from "./subagent-settings.ts";
 
 type RpcResponse = {
 	type: "response";
@@ -58,6 +59,7 @@ export class RpcChild {
 	constructor(
 		private readonly cwd: string,
 		private readonly sessionFile: string,
+		private readonly options: SubagentLaunchOptions = {},
 	) {}
 
 	isAlive(): boolean {
@@ -81,7 +83,10 @@ export class RpcChild {
 	async start(): Promise<void> {
 		if (this.process) throw new Error("Child process already started");
 
-		const invocation = piInvocation(["--mode", "rpc", "--session", this.sessionFile]);
+		const args = ["--mode", "rpc", "--session", this.sessionFile];
+		if (this.options.model) args.push("--model", this.options.model);
+		if (this.options.thinkingLevel) args.push("--thinking", this.options.thinkingLevel);
+		const invocation = piInvocation(args);
 		const child = spawn(invocation.command, invocation.args, {
 			cwd: this.cwd,
 			env: { ...process.env, PI_SUBAGENT_CHILD: "1" },

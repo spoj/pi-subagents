@@ -6,12 +6,19 @@ A small Pi extension for asynchronous subagents that always run in a stable sess
 
 The model-facing surface is intentionally fixed:
 
-- `Agent({ prompt })` starts a child and returns immediately with its ID and transcript path.
+- `Agent({ prompt, model?, thinkingLevel? })` starts a child and returns immediately with its ID and transcript path.
 - `AgentSteer({ id, prompt })` steers a running child.
 - `AgentResume({ id, prompt })` continues a stopped, failed, or completed child.
 - `AgentStop({ id })` stops a child.
 
-There is no model selector, agent selector, wait tool, listing tool, workflow language, or model-specific transcript logic. The child is a separate `pi --mode rpc` process using the normal Pi settings and tools.
+There is no model listing, agent selector, wait tool, listing tool, workflow language, or model-specific transcript logic. The child is a separate `pi --mode rpc` process using the normal Pi settings and tools.
+
+Subagent model selection follows this order:
+
+1. `model` and `thinkingLevel` passed directly to `Agent`.
+2. `defaultSubagentModel` and `defaultSubagentThinkingLevel` in `~/.pi/agent/settings.json`.
+3. Model and thinking-level entries persisted in the forked session.
+4. Pi's ordinary `defaultModel`, `defaultProvider`, and thinking-level settings.
 
 Each child gets a new session file containing the parent session's path up to the current `Agent` call, then receives a new user message:
 
@@ -34,6 +41,8 @@ The package contains a separate `replay` extension. It is package-wide: it runs 
 
 ```json
 {
+  "defaultSubagentModel": "github-copilot/gpt-5.6-luna",
+  "defaultSubagentThinkingLevel": "xhigh",
   "replayCompatibleModels": [
     [
       "github-copilot/openai-responses/gpt-5.6-sol",

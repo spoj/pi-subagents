@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createForkedSession, delegatedTask } from "./fork.ts";
 import { RpcChild, type ChildEventListener, type ChildExit } from "./rpc.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { SubagentLaunchOptions } from "./subagent-settings.ts";
 
 export type SubagentStatus = "starting" | "running" | "completed" | "failed" | "stopped";
 
@@ -17,6 +18,7 @@ export type SubagentSnapshot = {
 
 type SubagentRecord = SubagentSnapshot & {
 	cwd: string;
+	launchOptions: SubagentLaunchOptions;
 	child?: RpcChild;
 	lastStopReason?: string;
 	stopRequested: boolean;
@@ -64,7 +66,11 @@ export class SubagentManager {
 		return Array.from(this.agents.values()).map((agent) => this.snapshot(agent));
 	}
 
-	async start(ctx: ExtensionContext, prompt: string): Promise<SubagentSnapshot> {
+	async start(
+		ctx: ExtensionContext,
+		prompt: string,
+		launchOptions: SubagentLaunchOptions,
+	): Promise<SubagentSnapshot> {
 		if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
 
 		const id = newId(this.agents);
@@ -73,6 +79,7 @@ export class SubagentManager {
 			id,
 			transcriptPath,
 			cwd: ctx.cwd,
+			launchOptions,
 			status: "starting",
 			turns: 0,
 			stopRequested: false,
@@ -172,7 +179,7 @@ export class SubagentManager {
 	}
 
 	private async startProcess(agent: SubagentRecord): Promise<void> {
-		const child = new RpcChild(agent.cwd, agent.transcriptPath);
+		const child = new RpcChild(agent.cwd, agent.transcriptPath, agent.launchOptions);
 		agent.child = child;
 		child.onEvent(this.eventListener(agent));
 		child.onExit((exit) => this.handleExit(agent, child, exit));
