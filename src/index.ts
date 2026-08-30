@@ -37,7 +37,7 @@ function childToolError(): never {
 
 function renderWidget(ctx: ExtensionContext, manager: SubagentManager): void {
 	const running = manager.list().filter((agent) => agent.status === "starting" || agent.status === "running").length;
-	ctx.ui.setWidget(WIDGET_KEY, running > 0 ? [`[${running}] agents running`] : undefined);
+	ctx.ui.setWidget(WIDGET_KEY, running > 0 ? [`${running} agents running`] : undefined);
 }
 
 function resultText(agent: SubagentSnapshot): string {
