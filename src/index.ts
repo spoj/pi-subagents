@@ -14,14 +14,17 @@ const WIDGET_KEY = "pi-subagents";
 
 const agentTool = Type.Object({
 	cwd: Type.Optional(
-		Type.String({ description: "Working directory for the subagent; relative paths use the parent working directory" }),
+		Type.String({
+			description:
+				"Omit this unless the user explicitly requests a different working directory or the task requires one; relative paths use the parent working directory",
+		}),
 	),
 	model: Type.Optional(
-		Type.String({ description: "Omit this unless you are specifically asked to dispatch a different model" }),
+		Type.String({ description: "Omit this unless the user explicitly requests a different model" }),
 	),
 	thinkingLevel: Type.Optional(
 		StringEnum(THINKING_LEVELS, {
-			description: "Omit this unless you are specifically asked to dispatch a different thinking level",
+			description: "Omit this unless the user explicitly requests a different thinking level",
 		}),
 	),
 	prompt: Type.String({ description: "The task for the forked subagent to execute" }),
@@ -61,7 +64,8 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	pi.registerTool({
 		name: "Agent",
 		label: "Agent",
-		description: "Start an asynchronous subagent. The result includes its ID and transcript path.",
+		description:
+			"Start an asynchronous subagent. Do not set cwd, model, or thinkingLevel unless the user explicitly requests it or the task cannot be completed without it. The result includes its ID and transcript path.",
 		parameters: agentTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
