@@ -1,0 +1,34 @@
+{
+  "name": "pi-subagents",
+  "version": "0.1.0",
+  "description": "Minimal asynchronous forked subagents for Pi",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spoj/pi-subagents.git"
+  },
+  "pi": {
+    "extensions": ["./extensions/subagents.ts", "./extensions/replay.ts"]
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "^0.84.4",
+    "@earendil-works/pi-ai": "^0.84.4",
+    "@earendil-works/pi-coding-agent": "^0.84.4",
+    "@types/node": "^22.19.19",
+    "typescript": "^5.9.3",
+    "typebox": "^1.3.7",
+    "vitest": "^4.1.9"
+  }
+}
