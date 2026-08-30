@@ -6,7 +6,7 @@ A small Pi extension for asynchronous subagents that always run in a stable sess
 
 The model-facing surface is intentionally fixed:
 
-- `Agent({ task, advanced_options?: { model?, thinkingLevel?, cwd? } })` starts a child and returns immediately with its ID and transcript path.
+- `Agent({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. Set `cwd`, `model`, and `thinkingLevel` to `null` unless needed.
 - `AgentSteer({ id, prompt })` steers a running child.
 - `AgentResume({ id, prompt })` continues a stopped, failed, or completed child.
 - `AgentStop({ id })` stops a child.
@@ -18,15 +18,15 @@ There is no model listing, agent selector, wait tool, listing tool, workflow lan
 ```json
 {
   "task": "Implement and test the feature",
-  "advanced_options": {
-    "cwd": "../feature-worktree"
-  }
+  "cwd": "../feature-worktree",
+  "model": null,
+  "thinkingLevel": null
 }
 ```
 
 Subagent model selection follows this order:
 
-1. `advanced_options.model` and `advanced_options.thinkingLevel` passed to `Agent`.
+1. `model` and `thinkingLevel` passed to `Agent`.
 2. `defaultSubagentModel` and `defaultSubagentThinkingLevel` in `~/.pi/agent/settings.json`.
 3. Model and thinking-level entries persisted in the forked session.
 4. Pi's ordinary `defaultModel`, `defaultProvider`, and thinking-level settings.

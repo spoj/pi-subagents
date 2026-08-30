@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe("subagent tools", () => {
-	it("exposes task and nests advanced options", async () => {
+	it("exposes task and flat nullable options", async () => {
 		delete process.env.PI_SUBAGENT_CHILD;
 		const { default: piSubagents } = await import("../src/index.ts");
 		const pi = {
@@ -47,14 +47,19 @@ describe("subagent tools", () => {
 		const properties = agentTool.parameters.properties;
 
 		expect(properties).toHaveProperty("task");
-		expect(properties).toHaveProperty("advanced_options");
+		expect(properties).not.toHaveProperty("advanced_options");
 		expect(properties).not.toHaveProperty("prompt");
-		expect(properties).not.toHaveProperty("model");
-		expect(properties).not.toHaveProperty("thinkingLevel");
-		expect(properties).not.toHaveProperty("cwd");
-		expect(properties.advanced_options.properties).toEqual(
+		expect(properties).toEqual(
 			expect.objectContaining({ model: expect.any(Object), thinkingLevel: expect.any(Object), cwd: expect.any(Object) }),
 		);
+		expect(agentTool.parameters.required).toEqual(["task", "cwd", "model", "thinkingLevel"]);
+		expect(properties.cwd.anyOf).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "string" }), { type: "null" }]),
+		);
+		expect(properties.model.anyOf).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "string" }), { type: "null" }]),
+		);
+		expect(properties.thinkingLevel.anyOf).toEqual(expect.arrayContaining([{ type: "null" }]));
 	});
 
 	it("delivers each settled result while sibling agents are still active", async () => {
