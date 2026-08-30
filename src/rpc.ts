@@ -242,10 +242,8 @@ export class RpcChild {
 	private handleExit(exit: ChildExit): void {
 		if (this.process === undefined) return;
 		this.process = undefined;
-		if (this.buffer) {
-			this.buffer += this.decoder.end();
-			if (this.buffer.trim()) this.processLine(this.buffer);
-		}
+		this.buffer += this.decoder.end();
+		if (this.buffer.trim()) this.processLine(this.buffer);
 		const error = new Error(
 			`Subagent process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
 		);

@@ -36,8 +36,6 @@ const stopTool = Type.Object({
 	id: Type.String({ description: "The subagent ID returned by Agent" }),
 });
 
-type AgentDetails = SubagentSnapshot;
-
 function childToolError(): never {
 	throw new Error("Subagent orchestration tools are unavailable inside a delegated subagent");
 }
@@ -152,8 +150,3 @@ export default function piSubagents(pi: ExtensionAPI): void {
 		uiContext = undefined;
 	});
 }
-
-export { createForkedSession, forkPoint } from "./fork.ts";
-export { canReplay, loadCompatibleModelFamilies, modelIdentity, replayCompatibleMessages } from "./replay.ts";
-export { SubagentManager } from "./manager.ts";
-export type { AgentDetails };

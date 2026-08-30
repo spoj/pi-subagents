@@ -18,7 +18,7 @@ export function loadCompatibleModelFamilies(settingsPath = join(getAgentDir(), "
 
 		const families: Set<string>[] = [];
 		for (const family of settings.replayCompatibleModels) {
-			if (Array.isArray(family) && family.every((model) => typeof model === "string")) {
+			if (Array.isArray(family) && family.length > 0 && family.every((model) => typeof model === "string")) {
 				families.push(new Set(family as string[]));
 			}
 		}

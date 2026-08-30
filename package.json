@@ -5,6 +5,7 @@
   "type": "module",
   "keywords": ["pi-package"],
   "license": "MIT",
+  "files": ["README.md", "extensions", "src"],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/spoj/pi-subagents.git"

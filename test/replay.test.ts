@@ -44,7 +44,7 @@ describe("compatible replay", () => {
 		const path = join(dir, "settings.json");
 		writeFileSync(path, JSON.stringify({ replayCompatibleModels: [[sol, 3], "not-a-family", []] }));
 
-		expect(loadCompatibleModelFamilies(path)).toHaveLength(1);
+		expect(loadCompatibleModelFamilies(path)).toHaveLength(0);
 	});
 
 	it("matches only models in the same family", () => {
