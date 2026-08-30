@@ -13,6 +13,9 @@ const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
 const WIDGET_KEY = "pi-subagents";
 
 const agentTool = Type.Object({
+	cwd: Type.Optional(
+		Type.String({ description: "Working directory for the subagent; relative paths use the parent working directory" }),
+	),
 	model: Type.Optional(
 		Type.String({ description: "Omit this unless you are specifically asked to dispatch a different model" }),
 	),
@@ -71,7 +74,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 				},
 				loadSubagentDefaults(),
 			);
-			const agent = await manager.start(ctx, params.prompt, launchOptions);
+			const agent = await manager.start(ctx, params.prompt, launchOptions, params.cwd);
 			return {
 				content: [{ type: "text", text: `Subagent started.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }],
 				details: agent,

@@ -10,8 +10,9 @@ Task:
 
 export const DELEGATED_TASK_SUFFIX = "\n</delegated-task>";
 
-export function delegatedTask(prompt: string): string {
-	return `${DELEGATED_TASK_PREFIX}${prompt}${DELEGATED_TASK_SUFFIX}`;
+export function delegatedTask(prompt: string, cwd?: string): string {
+	const workingDirectoryNotice = cwd ? `Your working directory has been switched to ${cwd}.\n\n` : "";
+	return `${DELEGATED_TASK_PREFIX}${workingDirectoryNotice}${prompt}${DELEGATED_TASK_SUFFIX}`;
 }
 
 function isAgentToolCall(message: { role: string; content?: unknown }): boolean {
@@ -46,18 +47,21 @@ function materializeSession(session: SessionManager, sessionFile: string): void 
 	});
 }
 
-export function createForkedSession(sessionManager: ExtensionContext["sessionManager"]): string {
+export function createForkedSession(sessionManager: ExtensionContext["sessionManager"], cwd?: string): string {
 	const parentFile = sessionManager.getSessionFile();
 	if (!parentFile) throw new Error("Agent requires a persisted parent session");
 
-	const source = SessionManager.open(parentFile);
+	const targetCwd = cwd === undefined ? undefined : resolve(sessionManager.getCwd(), cwd);
+	const source = targetCwd
+		? SessionManager.open(parentFile, undefined, targetCwd)
+		: SessionManager.open(parentFile);
 	const point = forkPoint(sessionManager);
 	let childFile: string | undefined;
 
 	if (point) {
 		childFile = source.createBranchedSession(point);
 	} else {
-		const empty = SessionManager.create(source.getCwd(), source.getSessionDir(), {
+		const empty = SessionManager.create(targetCwd ?? source.getCwd(), source.getSessionDir(), {
 			parentSession: resolve(parentFile),
 		});
 		childFile = empty.getSessionFile();

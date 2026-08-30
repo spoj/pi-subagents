@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { createForkedSession, delegatedTask } from "./fork.ts";
 import { RpcChild, type ChildEventListener, type ChildExit } from "./rpc.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -18,6 +19,7 @@ export type SubagentSnapshot = {
 
 type SubagentRecord = SubagentSnapshot & {
 	cwd: string;
+	cwdExplicit: boolean;
 	launchOptions: SubagentLaunchOptions;
 	child?: RpcChild;
 	lastStopReason?: string;
@@ -70,15 +72,19 @@ export class SubagentManager {
 		ctx: ExtensionContext,
 		prompt: string,
 		launchOptions: SubagentLaunchOptions,
+		cwd?: string,
 	): Promise<SubagentSnapshot> {
 		if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
 
+		const cwdExplicit = cwd !== undefined;
+		const agentCwd = cwdExplicit ? resolve(ctx.cwd, cwd) : ctx.cwd;
 		const id = newId(this.agents);
-		const transcriptPath = createForkedSession(ctx.sessionManager);
+		const transcriptPath = createForkedSession(ctx.sessionManager, cwdExplicit ? agentCwd : undefined);
 		const agent: SubagentRecord = {
 			id,
 			transcriptPath,
-			cwd: ctx.cwd,
+			cwd: agentCwd,
+			cwdExplicit,
 			launchOptions,
 			status: "starting",
 			turns: 0,
@@ -92,7 +98,7 @@ export class SubagentManager {
 			await this.startProcess(agent);
 			agent.status = "running";
 			this.options.onUpdate();
-			await agent.child!.prompt(delegatedTask(prompt));
+			await agent.child!.prompt(delegatedTask(prompt, agent.cwdExplicit ? agent.cwd : undefined));
 			return this.snapshot(agent);
 		} catch (error) {
 			agent.stopRequested = true;
@@ -135,7 +141,7 @@ export class SubagentManager {
 				}
 				agent.status = "running";
 				this.options.onUpdate();
-				await agent.child!.prompt(delegatedTask(prompt));
+				await agent.child!.prompt(delegatedTask(prompt, agent.cwdExplicit ? agent.cwd : undefined));
 				return this.snapshot(agent);
 			} catch (error) {
 				agent.stopRequested = true;

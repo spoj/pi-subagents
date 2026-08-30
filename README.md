@@ -6,12 +6,21 @@ A small Pi extension for asynchronous subagents that always run in a stable sess
 
 The model-facing surface is intentionally fixed:
 
-- `Agent({ prompt, model?, thinkingLevel? })` starts a child and returns immediately with its ID and transcript path.
+- `Agent({ prompt, model?, thinkingLevel?, cwd? })` starts a child and returns immediately with its ID and transcript path.
 - `AgentSteer({ id, prompt })` steers a running child.
 - `AgentResume({ id, prompt })` continues a stopped, failed, or completed child.
 - `AgentStop({ id })` stops a child.
 
 There is no model listing, agent selector, wait tool, listing tool, workflow language, or model-specific transcript logic. The child is a separate `pi --mode rpc` process using the normal Pi settings and tools.
+
+`cwd` selects an existing directory, such as a Git worktree, for the child. Relative paths are resolved against the parent working directory (`ctx.cwd`). The resolved path is used for both the child process and the forked session, and is retained when the child is resumed. When `cwd` is explicit, the delegated task also tells the child that its working directory was switched to the resolved path. For example:
+
+```json
+{
+  "prompt": "Implement and test the feature",
+  "cwd": "../feature-worktree"
+}
+```
 
 Subagent model selection follows this order:
 
@@ -33,7 +42,7 @@ Task:
 
 The extension does not add a child-only system prompt. All four tools are registered in both parent and child processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
 
-When a child settles, the parent receives its status, ID, transcript path, and final text as a follow-up message. The parent can inspect the full transcript with Pi's existing `read` tool. A compact human-only widget shows known child activity.
+When a child settles, the parent receives its status, ID, transcript path, and final text as a steering message. The parent can inspect the full transcript with Pi's existing `read` tool. A compact human-only widget shows known child activity.
 
 ## Context replay
 

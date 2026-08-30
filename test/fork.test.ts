@@ -1,10 +1,10 @@
 import { readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { createForkedSession, forkPoint } from "../src/fork.ts";
+import { createForkedSession, delegatedTask, forkPoint } from "../src/fork.ts";
 
 const usage = {
 	input: 0,
@@ -60,6 +60,7 @@ describe("fork creation", () => {
 			.map((line) => JSON.parse(line));
 
 		expect(entries[0].type).toBe("session");
+		expect(entries[0].cwd).toBe(parent.getCwd());
 		expect(entries[0].parentSession).toBe(parent.getSessionFile());
 		expect(entries.filter((entry) => entry.type === "message").map((entry) => entry.message.role)).toEqual([
 			"user",
@@ -67,6 +68,24 @@ describe("fork creation", () => {
 			"user",
 		]);
 		expect(entries.some((entry) => JSON.stringify(entry).includes("call-agent"))).toBe(false);
+	});
+
+	it("uses a resolved explicit cwd in the forked session header", () => {
+		const parent = makeSession();
+		const childPath = createForkedSession(parent, "worktree");
+		const entries = readFileSync(childPath, "utf8")
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+
+		expect(entries[0].cwd).toBe(resolve(parent.getCwd(), "worktree"));
+	});
+
+	it("adds a working-directory notice only for explicit cwd values", () => {
+		expect(delegatedTask("work")).not.toContain("Your working directory has been switched");
+		expect(delegatedTask("work", "/tmp/worktree")).toContain(
+			"Your working directory has been switched to /tmp/worktree.",
+		);
 	});
 
 	it("materializes a branch that contains no previous assistant response", () => {
