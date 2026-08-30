@@ -56,7 +56,7 @@ pi install git:github.com/spoj/pi-subagents
 Or run the local checkout temporarily:
 
 ```bash
-pi -e ./extensions/subagents.ts
+pi -e ./extensions/subagents.ts -e ./extensions/replay.ts
 ```
 
 For normal child spawning, install the package (or configure the package in `~/.pi/agent/settings.json`) so child Pi processes load the same extension. Remove any older standalone `context-replay.ts` extension and `context-replay.json` configuration to avoid duplicate behavior.
