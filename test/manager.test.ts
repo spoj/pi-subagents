@@ -41,10 +41,12 @@ const mocks = vi.hoisted(() => {
 
 		async start(): Promise<void> {
 			if (startGate) await startGate;
+			if (startError) throw startError;
 		}
 
 		async prompt(message: string): Promise<void> {
 			this.prompts.push(message);
+			if (promptError) throw promptError;
 		}
 
 		async steer(message: string): Promise<void> {
@@ -75,6 +77,8 @@ const mocks = vi.hoisted(() => {
 
 	const children: FakeRpcChild[] = [];
 	let startGate: Promise<void> | undefined;
+	let startError: Error | undefined;
+	let promptError: Error | undefined;
 	return {
 		children,
 		FakeRpcChild,
@@ -83,6 +87,18 @@ const mocks = vi.hoisted(() => {
 		},
 		set startGate(value: Promise<void> | undefined) {
 			startGate = value;
+		},
+		get startError() {
+			return startError;
+		},
+		set startError(value: Error | undefined) {
+			startError = value;
+		},
+		get promptError() {
+			return promptError;
+		},
+		set promptError(value: Error | undefined) {
+			promptError = value;
 		},
 	};
 });
@@ -105,6 +121,8 @@ function createManager(settled: SubagentSnapshot[] = []): SubagentManager {
 beforeEach(() => {
 	mocks.children.length = 0;
 	mocks.startGate = undefined;
+	mocks.startError = undefined;
+	mocks.promptError = undefined;
 });
 
 describe("subagent manager", () => {
@@ -143,6 +161,33 @@ describe("subagent manager", () => {
 			error: "Process exited with 1",
 		});
 		expect(settled).toHaveLength(1);
+	});
+
+	it("reports a startup failure exactly once", async () => {
+		const settled: SubagentSnapshot[] = [];
+		mocks.startError = new Error("startup failed");
+		const manager = createManager(settled);
+
+		await expect(manager.start(context, "work", {})).rejects.toThrow("Could not start");
+
+		expect(settled).toHaveLength(1);
+		expect(settled[0]).toMatchObject({ status: "failed", error: "startup failed" });
+		mocks.children[0].emit({ type: "agent_settled" });
+		expect(settled).toHaveLength(1);
+		expect(manager.list()[0].status).toBe("failed");
+	});
+
+	it("reports a resume failure exactly once", async () => {
+		const settled: SubagentSnapshot[] = [];
+		const manager = createManager(settled);
+		const started = await manager.start(context, "first", {});
+		mocks.children[0].emit({ type: "agent_settled" });
+		mocks.promptError = new Error("resume failed");
+
+		await expect(manager.resume(started.id, "second")).rejects.toThrow("Could not resume");
+
+		expect(settled).toHaveLength(2);
+		expect(settled[1]).toMatchObject({ id: started.id, status: "failed", error: "resume failed" });
 	});
 
 	it("stops an active child and settles it once", async () => {
@@ -202,5 +247,34 @@ describe("subagent manager", () => {
 		expect(resumed.status).toBe("running");
 		expect(mocks.children).toHaveLength(1);
 		expect(child.prompts).toEqual(["first", "second"]);
+	});
+
+	it("does not let shutdown race an in-flight resume", async () => {
+		const manager = createManager();
+		const started = await manager.start(context, "first", {});
+		const child = mocks.children[0];
+		child.emit({ type: "agent_settled" });
+		child.exit({ code: 0, signal: null });
+
+		let releaseStart!: () => void;
+		mocks.startGate = new Promise<void>((resolve) => {
+			releaseStart = resolve;
+		});
+		const resuming = manager.resume(started.id, "second");
+		await Promise.resolve();
+		const resumedChild = mocks.children[1];
+
+		let shutdownSettled = false;
+		const shuttingDown = manager.shutdown().then(() => {
+			shutdownSettled = true;
+		});
+		await Promise.resolve();
+		expect(shutdownSettled).toBe(false);
+
+		const resumeFailure = expect(resuming).rejects.toThrow("Could not resume");
+		releaseStart();
+		await resumeFailure;
+		await shuttingDown;
+		expect(resumedChild.prompts).toEqual([]);
 	});
 });

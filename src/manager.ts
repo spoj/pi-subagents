@@ -24,6 +24,7 @@ type SubagentRecord = SubagentSnapshot & {
 	child?: RpcChild;
 	lastStopReason?: string;
 	stopRequested: boolean;
+	settled: boolean;
 	operation: Promise<void>;
 };
 
@@ -90,11 +91,13 @@ export class SubagentManager {
 			status: "starting",
 			turns: 0,
 			stopRequested: false,
+			settled: false,
 			operation: Promise.resolve(),
 		};
 		this.agents.set(id, agent);
 		this.options.onUpdate();
 
+		agent.settled = false;
 		const operation = this.launch(agent, prompt);
 		this.starts.add(operation);
 		try {
@@ -117,7 +120,7 @@ export class SubagentManager {
 
 	async resume(id: string, prompt: string): Promise<SubagentSnapshot> {
 		const agent = this.require(id);
-		return this.enqueue(agent, async () => {
+		const operation = this.enqueue(agent, async () => {
 			if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
 			if (agent.status === "running" || agent.status === "starting") {
 				throw new Error(`${id} is already running`);
@@ -128,11 +131,13 @@ export class SubagentManager {
 			agent.lastStopReason = undefined;
 			agent.status = "starting";
 			agent.activity = undefined;
+			agent.settled = false;
 			this.options.onUpdate();
 
 			try {
 				if (!agent.child?.isAlive()) {
 					await this.startProcess(agent);
+					if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
 				}
 				agent.status = "running";
 				this.options.onUpdate();
@@ -143,9 +148,16 @@ export class SubagentManager {
 				if (agent.child?.isAlive()) await agent.child.stop().catch(() => undefined);
 				agent.stopRequested = false;
 				this.fail(agent, errorText(error));
+				if (!this.shuttingDown) this.settle(agent);
 				throw new Error(`Could not resume ${id}: ${errorText(error)}`);
 			}
 		});
+		this.starts.add(operation);
+		try {
+			return await operation;
+		} finally {
+			this.starts.delete(operation);
+		}
 	}
 
 	async stop(id: string): Promise<SubagentSnapshot> {
@@ -160,7 +172,7 @@ export class SubagentManager {
 			agent.status = "stopped";
 			agent.activity = undefined;
 			this.options.onUpdate();
-			if (wasActive) this.options.onSettled(this.snapshot(agent));
+			if (wasActive) this.settle(agent);
 			return this.snapshot(agent);
 		});
 	}
@@ -189,6 +201,7 @@ export class SubagentManager {
 			if (agent.child?.isAlive()) await agent.child.stop().catch(() => undefined);
 			agent.stopRequested = false;
 			this.fail(agent, errorText(error));
+			if (!this.shuttingDown) this.settle(agent);
 			throw new Error(`Could not start ${agent.id}: ${errorText(error)}`);
 		}
 	}
@@ -223,7 +236,7 @@ export class SubagentManager {
 					}
 					break;
 				case "agent_settled":
-					if (!agent.stopRequested) {
+					if (!agent.stopRequested && !agent.settled) {
 						if (agent.lastStopReason === "error" || agent.lastStopReason === "aborted") {
 							agent.status = "failed";
 							agent.error = agent.error ?? "Subagent stopped with an error";
@@ -231,7 +244,7 @@ export class SubagentManager {
 							agent.status = "completed";
 						}
 						agent.activity = undefined;
-						this.options.onSettled(this.snapshot(agent));
+						this.settle(agent);
 					}
 					break;
 			}
@@ -246,6 +259,12 @@ export class SubagentManager {
 		agent.activity = undefined;
 		agent.error = child.getStderr().trim() || `Process exited with ${exit.code ?? exit.signal ?? "no status"}`;
 		this.options.onUpdate();
+		this.settle(agent);
+	}
+
+	private settle(agent: SubagentRecord): void {
+		if (agent.settled) return;
+		agent.settled = true;
 		this.options.onSettled(this.snapshot(agent));
 	}
 
