@@ -44,7 +44,7 @@ function childToolError(): never {
 }
 
 function renderWidget(ctx: ExtensionContext, manager: SubagentManager): void {
-	const running = manager.list().filter((agent) => agent.status === "starting" || agent.status === "running").length;
+	const running = manager.list().filter(isActive).length;
 	ctx.ui.setWidget(WIDGET_KEY, running > 0 ? [`${running} agents running`] : undefined);
 }
 
@@ -58,6 +58,10 @@ function resultText(agent: SubagentSnapshot): string {
 		`Transcript: ${agent.transcriptPath}`,
 		agent.error ? `Error: ${agent.error}` : output ? `Result:\n${output}` : "Result: (no final response; inspect the transcript)",
 	].join("\n");
+}
+
+function isActive(agent: SubagentSnapshot): boolean {
+	return agent.status === "starting" || agent.status === "running";
 }
 
 function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
@@ -123,18 +127,25 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 
 export default function piSubagents(pi: ExtensionAPI): void {
 	let uiContext: ExtensionContext | undefined;
-	const manager = new SubagentManager({
+	let manager: SubagentManager;
+	let pendingSettled: SubagentSnapshot[] = [];
+	manager = new SubagentManager({
 		onUpdate: () => {
 			if (uiContext) renderWidget(uiContext, manager);
 		},
 		onSettled: (agent) => {
 			if (CHILD_PROCESS) return;
+			pendingSettled.push(agent);
+			if (manager.list().some(isActive)) return;
+
+			const settled = pendingSettled;
+			pendingSettled = [];
 			pi.sendMessage(
 				{
 					customType: "pi-subagents",
-					content: resultText(agent),
+					content: settled.map(resultText).join("\n\n"),
 					display: true,
-					details: agent,
+					details: settled,
 				},
 				{ deliverAs: "steer", triggerTurn: true },
 			);

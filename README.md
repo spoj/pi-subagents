@@ -42,7 +42,7 @@ Task:
 
 The extension does not add a child-only system prompt. All four tools are registered in both parent and child processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
 
-When a child settles, the parent receives its status, ID, transcript path, and final text as a steering message. The parent can inspect the full transcript with Pi's existing `read` tool. A compact human-only widget shows known child activity.
+When one or more children settle and no children remain active, the parent receives their statuses, IDs, transcript paths, and final text in one steering message. The parent can inspect the full transcripts with Pi's existing `read` tool. A compact human-only widget shows known child activity.
 
 ## Context replay
 
