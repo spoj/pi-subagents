@@ -118,7 +118,7 @@ export default function piSubagents(pi: ExtensionAPI): void {
 			if (uiContext) renderWidget(uiContext, manager);
 		},
 		onSettled: (agent) => {
-			if (CHILD_PROCESS || !uiContext) return;
+			if (CHILD_PROCESS) return;
 			pi.sendMessage(
 				{
 					customType: "pi-subagents",
