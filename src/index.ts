@@ -13,9 +13,13 @@ const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
 const WIDGET_KEY = "pi-subagents";
 
 const agentTool = Type.Object({
-	model: Type.Optional(Type.String({ description: "Optional model pattern for the subagent" })),
+	model: Type.Optional(
+		Type.String({ description: "Omit this unless you are specifically asked to dispatch a different model" }),
+	),
 	thinkingLevel: Type.Optional(
-		StringEnum(THINKING_LEVELS, { description: "Optional thinking level for the subagent" }),
+		StringEnum(THINKING_LEVELS, {
+			description: "Omit this unless you are specifically asked to dispatch a different thinking level",
+		}),
 	),
 	prompt: Type.String({ description: "The task for the forked subagent to execute" }),
 });
@@ -56,7 +60,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	pi.registerTool({
 		name: "Agent",
 		label: "Agent",
-		description: "Start an asynchronous subagent in a stable fork of this session. The result includes its ID and transcript path.",
+		description: "Start an asynchronous subagent. The result includes its ID and transcript path.",
 		parameters: agentTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
