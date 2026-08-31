@@ -78,10 +78,14 @@ export class ForkManager {
 		cwd?: string,
 	): Promise<ForkSnapshot> {
 		if (!launchOptions.model?.trim()) {
-			throw new Error("Fork requires a model: pass model explicitly or configure defaultForkModel");
+			throw new Error(
+				"Fork requires a model. First check which models are available, then ask the user to choose one; do not assume a model. The user can also configure defaultForkModel.",
+			);
 		}
 		if (!launchOptions.thinkingLevel) {
-			throw new Error("Fork requires a thinking level: pass thinkingLevel explicitly or configure defaultForkThinkingLevel");
+			throw new Error(
+				"Fork requires a thinking level: ask the user to choose one or configure defaultForkThinkingLevel; do not assume one.",
+			);
 		}
 		if (this.shuttingDown) throw new Error("Fork manager is shutting down");
 

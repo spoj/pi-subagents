@@ -139,9 +139,11 @@ describe("fork manager", () => {
 	it("refuses to start without a model or thinking level", async () => {
 		const manager = createManager();
 
-		await expect(manager.start(context, "work", {})).rejects.toThrow("Fork requires a model");
+		await expect(manager.start(context, "work", {})).rejects.toThrow(
+			"First check which models are available, then ask the user to choose one; do not assume a model",
+		);
 		await expect(manager.start(context, "work", { model: "provider/test" })).rejects.toThrow(
-			"Fork requires a thinking level",
+			"Fork requires a thinking level: ask the user to choose one",
 		);
 		expect(mocks.children).toHaveLength(0);
 	});

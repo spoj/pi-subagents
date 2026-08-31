@@ -155,8 +155,8 @@ describe("fork tools", () => {
 	});
 
 	it.each([
-		{ defaults: {}, message: "Fork requires a model" },
-		{ defaults: { model: "provider/default" }, message: "Fork requires a thinking level" },
+		{ defaults: {}, message: "First check which models are available, then ask the user to choose one; do not assume a model" },
+		{ defaults: { model: "provider/default" }, message: "Fork requires a thinking level: ask the user to choose one" },
 	])("refuses to start without a complete fork configuration", async ({ defaults, message }) => {
 		delete process.env.PI_FORK_CHILD;
 		mocks.forkDefaults = defaults;
