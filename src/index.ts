@@ -12,7 +12,7 @@ import {
 
 const CHILD_PROCESS = process.env.PI_FORK_CHILD === "1";
 const WIDGET_KEY = "pi-tiny-fork";
-const DELEGATION_SYSTEM_PROMPT = `You have access to fork tools. Use Fork({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. Use ForkSteer for relevant context or direction that arises after the initial delegation point. If you see a user message containing "<delegated-task>" it marks the task for this delegated fork. Treat the inherited conversation as context and execute only that delegated task. If you are unsure whether this process is a fork, inspect the PI_FORK_CHILD environment variable with the shell; a value of "1" means this is a fork.`;
+const DELEGATION_SYSTEM_PROMPT = `You have access to fork tools. Use Fork({ task, cwd: null, model: null, thinkingLevel: null }) by default, but provide model and thinkingLevel explicitly unless their corresponding defaultFork settings are configured. A fork is refused when either is unavailable. Set cwd to a non-null value only when necessary or requested by the user. Use ForkSteer for relevant context or direction that arises after the initial delegation point. If you see a user message containing "<delegated-task>" it marks the task for this delegated fork. Treat the inherited conversation as context and execute only that delegated task. If you are unsure whether this process is a fork, inspect the PI_FORK_CHILD environment variable with the shell; a value of "1" means this is a fork.`;
 
 const forkTool = Type.Object({
 	task: Type.String({ description: "Task sent to the forked child" }),
@@ -24,12 +24,12 @@ const forkTool = Type.Object({
 		Type.Null(),
 	]),
 	model: Type.Union([
-		Type.String({ description: "Model identifier for the fork; null uses the configured default" }),
+		Type.String({ description: "Model identifier for the fork; null uses defaultForkModel" }),
 		Type.Null(),
 	]),
 	thinkingLevel: Type.Union([
 		StringEnum(THINKING_LEVELS, {
-			description: "Thinking level for the fork; null uses the configured default",
+			description: "Thinking level for the fork; null uses defaultForkThinkingLevel",
 		}),
 		Type.Null(),
 	]),
@@ -74,7 +74,7 @@ function registerTools(pi: ExtensionAPI, manager: ForkManager): void {
 		name: "Fork",
 		label: "Fork",
 		description:
-			"Starts an asynchronous fork that inherits the caller's context up to the point of delegation, and returns its ID and transcript path.",
+			"Starts an asynchronous fork that inherits the caller's context up to the point of delegation. A model and thinking level must be selected explicitly or configured with defaultForkModel and defaultForkThinkingLevel.",
 		parameters: forkTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
@@ -85,6 +85,12 @@ function registerTools(pi: ExtensionAPI, manager: ForkManager): void {
 				},
 				loadForkDefaults(),
 			);
+			if (!launchOptions.model?.trim()) {
+				throw new Error("Fork requires a model: pass model explicitly or configure defaultForkModel");
+			}
+			if (!launchOptions.thinkingLevel) {
+				throw new Error("Fork requires a thinking level: pass thinkingLevel explicitly or configure defaultForkThinkingLevel");
+			}
 			const fork = await manager.start(ctx, params.task, launchOptions, params.cwd ?? undefined);
 			return {
 				content: [{ type: "text", text: `Fork started.\n\nID: ${fork.id}\nTranscript: ${fork.transcriptPath}` }],

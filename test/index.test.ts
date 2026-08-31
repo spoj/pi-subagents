@@ -3,6 +3,7 @@ import type { ForkSnapshot } from "../src/manager.ts";
 
 const mocks = vi.hoisted(() => {
 	let managerOptions: { onSettled: (fork: ForkSnapshot) => void } | undefined;
+	let forkDefaults: { model?: string; thinkingLevel?: string } = {};
 	const startCalls: Array<{
 		ctx: unknown;
 		prompt: string;
@@ -33,6 +34,12 @@ const mocks = vi.hoisted(() => {
 	return {
 		FakeManager,
 		startCalls,
+		get forkDefaults() {
+			return forkDefaults;
+		},
+		set forkDefaults(value: { model?: string; thinkingLevel?: string }) {
+			forkDefaults = value;
+		},
 		get managerOptions() {
 			return managerOptions;
 		},
@@ -40,6 +47,10 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("../src/manager.ts", () => ({ ForkManager: mocks.FakeManager }));
+vi.mock("../src/fork-settings.ts", async () => {
+	const actual = await vi.importActual<typeof import("../src/fork-settings.ts")>("../src/fork-settings.ts");
+	return { ...actual, loadForkDefaults: () => mocks.forkDefaults };
+});
 
 const originalChildFlag = process.env.PI_FORK_CHILD;
 
@@ -47,6 +58,7 @@ afterEach(() => {
 	if (originalChildFlag === undefined) delete process.env.PI_FORK_CHILD;
 	else process.env.PI_FORK_CHILD = originalChildFlag;
 	mocks.startCalls.length = 0;
+	mocks.forkDefaults = {};
 	vi.resetModules();
 });
 
@@ -119,6 +131,7 @@ describe("fork tools", () => {
 
 	it("normalizes null options before starting", async () => {
 		delete process.env.PI_FORK_CHILD;
+		mocks.forkDefaults = { model: "provider/default", thinkingLevel: "high" };
 		const { default: piTinyFork } = await import("../src/index.ts");
 		const pi = {
 			registerTool: vi.fn(),
@@ -138,9 +151,34 @@ describe("fork tools", () => {
 
 		expect(mocks.startCalls).toHaveLength(1);
 		expect(mocks.startCalls[0]).toMatchObject({ prompt: "check defaults", cwd: undefined });
-		expect(mocks.startCalls[0].launchOptions).not.toEqual(
-			expect.objectContaining({ model: null, thinkingLevel: null }),
-		);
+		expect(mocks.startCalls[0].launchOptions).toEqual({ model: "provider/default", thinkingLevel: "high" });
+	});
+
+	it.each([
+		{ defaults: {}, message: "Fork requires a model" },
+		{ defaults: { model: "provider/default" }, message: "Fork requires a thinking level" },
+	])("refuses to start without a complete fork configuration", async ({ defaults, message }) => {
+		delete process.env.PI_FORK_CHILD;
+		mocks.forkDefaults = defaults;
+		const { default: piTinyFork } = await import("../src/index.ts");
+		const pi = {
+			registerTool: vi.fn(),
+			on: vi.fn(),
+			sendMessage: vi.fn(),
+		};
+
+		piTinyFork(pi as never);
+		const forkTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Fork")?.[0];
+		await expect(
+			forkTool.execute(
+				"call-1",
+				{ task: "check configuration", cwd: null, model: null, thinkingLevel: null },
+				undefined,
+				undefined,
+				{} as never,
+			),
+		).rejects.toThrow(message);
+		expect(mocks.startCalls).toHaveLength(0);
 	});
 
 	it("delivers each settled result while sibling forks are still active", async () => {

@@ -77,6 +77,12 @@ export class ForkManager {
 		launchOptions: ForkLaunchOptions,
 		cwd?: string,
 	): Promise<ForkSnapshot> {
+		if (!launchOptions.model?.trim()) {
+			throw new Error("Fork requires a model: pass model explicitly or configure defaultForkModel");
+		}
+		if (!launchOptions.thinkingLevel) {
+			throw new Error("Fork requires a thinking level: pass thinkingLevel explicitly or configure defaultForkThinkingLevel");
+		}
 		if (this.shuttingDown) throw new Error("Fork manager is shutting down");
 
 		const cwdExplicit = cwd !== undefined;

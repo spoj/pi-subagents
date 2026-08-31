@@ -6,7 +6,7 @@ A tiny Pi extension for running asynchronous child sessions from a stable fork p
 
 The model-facing surface is intentionally fixed:
 
-- `Fork({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null options inherit their configured defaults.
+- `Fork({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null `model` and `thinkingLevel` use their dedicated `defaultFork*` settings; the fork is refused when either value is unavailable.
 - `ForkSteer({ id, prompt })` steers a running child.
 - `ForkStop({ id })` stops a running child.
 
@@ -25,12 +25,13 @@ There is no model listing, agent selector, wait tool, listing tool, workflow lan
 }
 ```
 
-Fork model selection follows this order:
+Fork model and thinking-level selection follows this order independently:
 
-1. Non-null `model` and `thinkingLevel` passed to `Fork`.
-2. `defaultForkModel` and `defaultForkThinkingLevel` in `~/.pi/agent/settings.json`.
-3. Model and thinking-level entries persisted in the forked session.
-4. Pi's ordinary `defaultModel`, `defaultProvider`, and thinking-level settings.
+1. Non-null `model` or `thinkingLevel` passed to `Fork`.
+2. The corresponding `defaultForkModel` or `defaultForkThinkingLevel` in `~/.pi/agent/settings.json`.
+3. The fork is refused when either value is unavailable.
+
+Forks do not fall back to model or thinking-level entries persisted in the forked session or to Pi's ordinary defaults.
 
 Each child gets a new session file containing the parent session's path up to the current `Fork` call, then receives a new user message:
 
