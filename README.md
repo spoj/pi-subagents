@@ -8,12 +8,13 @@ The model-facing surface is intentionally fixed:
 
 - `Agent({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null options inherit their configured defaults.
 - `AgentSteer({ id, prompt })` steers a running child.
-- `AgentResume({ id, prompt })` continues a stopped, failed, or completed child.
-- `AgentStop({ id })` stops a child.
+- `AgentStop({ id })` stops a running child.
+
+Completed, failed, and stopped children are terminal. Their RPC process is closed, and further work starts a new child with a new ID and transcript.
 
 There is no model listing, agent selector, wait tool, listing tool, workflow language, or model-specific transcript logic. The child is a separate `pi --mode rpc` process using the normal Pi settings and tools.
 
-`cwd` selects an existing directory, such as a Git worktree, for the child. Relative paths are resolved against the parent working directory (`ctx.cwd`). The resolved path is used for both the child process and the forked session, and is retained when the child is resumed. When `cwd` is explicit, the delegated task also tells the child that its working directory was switched to the resolved path. For example:
+`cwd` selects an existing directory, such as a Git worktree, for the child. Relative paths are resolved against the parent working directory (`ctx.cwd`). The resolved path is used for both the child process and the forked session. When `cwd` is explicit, the delegated task also tells the child that its working directory was switched to the resolved path. For example:
 
 ```json
 {
@@ -42,7 +43,7 @@ Task:
 </delegated-task>
 ```
 
-The extension appends the same delegation guidance to the system prompt in both parent and child processes. It identifies a user message containing `<delegated-task>` as the delegated task marker. All four tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
+The extension appends the same delegation guidance to the system prompt in both parent and child processes. It identifies a user message containing `<delegated-task>` as the delegated task marker. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
 
 When a child settles, the parent immediately receives its status, ID, transcript path, and final text in a steering message. The parent can inspect the full transcripts with Pi's existing `read` tool. A compact human-only widget shows known child activity.
 

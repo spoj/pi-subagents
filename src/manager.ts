@@ -22,6 +22,7 @@ type SubagentRecord = SubagentSnapshot & {
 	cwdExplicit: boolean;
 	launchOptions: SubagentLaunchOptions;
 	child?: RpcChild;
+	cleanup?: Promise<void>;
 	lastStopReason?: string;
 	stopRequested: boolean;
 	settled: boolean;
@@ -111,59 +112,19 @@ export class SubagentManager {
 		const agent = this.require(id);
 		return this.enqueue(agent, async () => {
 			if (agent.status !== "running" || !agent.child?.isAlive()) {
-				throw new Error(`${id} is not running; use AgentResume to continue it`);
+				throw new Error(`${id} is not running; start a new agent to continue the work`);
 			}
 			await agent.child.steer(prompt);
 			return this.snapshot(agent);
 		});
 	}
 
-	async resume(id: string, prompt: string): Promise<SubagentSnapshot> {
-		const agent = this.require(id);
-		const operation = this.enqueue(agent, async () => {
-			if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
-			if (agent.status === "running" || agent.status === "starting") {
-				throw new Error(`${id} is already running`);
-			}
-			agent.stopRequested = false;
-			agent.error = undefined;
-			agent.lastOutput = undefined;
-			agent.lastStopReason = undefined;
-			agent.status = "starting";
-			agent.activity = undefined;
-			agent.settled = false;
-			this.options.onUpdate();
-
-			try {
-				if (!agent.child?.isAlive()) {
-					await this.startProcess(agent);
-					if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
-				}
-				agent.status = "running";
-				this.options.onUpdate();
-				await agent.child!.prompt(delegatedTask(prompt, agent.cwdExplicit ? agent.cwd : undefined));
-				return this.snapshot(agent);
-			} catch (error) {
-				agent.stopRequested = true;
-				if (agent.child?.isAlive()) await agent.child.stop().catch(() => undefined);
-				agent.stopRequested = false;
-				this.fail(agent, errorText(error));
-				if (!this.shuttingDown) this.settle(agent);
-				throw new Error(`Could not resume ${id}: ${errorText(error)}`);
-			}
-		});
-		this.starts.add(operation);
-		try {
-			return await operation;
-		} finally {
-			this.starts.delete(operation);
-		}
-	}
-
 	async stop(id: string): Promise<SubagentSnapshot> {
 		const agent = this.require(id);
 		return this.enqueue(agent, async () => {
-			const wasActive = agent.status === "starting" || agent.status === "running";
+			if (agent.status !== "starting" && agent.status !== "running") {
+				throw new Error(`${id} is not running`);
+			}
 			agent.stopRequested = true;
 			if (agent.child?.isAlive()) {
 				void agent.child.abort().catch(() => undefined);
@@ -172,7 +133,7 @@ export class SubagentManager {
 			agent.status = "stopped";
 			agent.activity = undefined;
 			this.options.onUpdate();
-			if (wasActive && !this.shuttingDown) this.settle(agent);
+			if (!this.shuttingDown) this.settle(agent);
 			return this.snapshot(agent);
 		});
 	}
@@ -182,7 +143,8 @@ export class SubagentManager {
 		await Promise.all([
 			...Array.from(this.agents.values()).map(async (agent) => {
 				agent.stopRequested = true;
-				if (agent.child?.isAlive()) await agent.child.stop();
+				agent.cleanup ??= agent.child?.isAlive() ? agent.child.stop() : Promise.resolve();
+				await agent.cleanup;
 			}),
 			...Array.from(this.agents.values(), (agent) => agent.operation),
 			...Array.from(this.starts, (start) => start.catch(() => undefined)),
@@ -266,6 +228,8 @@ export class SubagentManager {
 	private settle(agent: SubagentRecord): void {
 		if (agent.settled) return;
 		agent.settled = true;
+		agent.stopRequested = true;
+		if (agent.child?.isAlive()) agent.cleanup = agent.child.stop().catch(() => undefined);
 		this.options.onSettled(this.snapshot(agent));
 	}
 

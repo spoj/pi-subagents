@@ -105,18 +105,6 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	});
 
 	pi.registerTool({
-		name: "AgentResume",
-		label: "Agent Resume",
-		description: "Resumes a completed, stopped, or failed subagent with a new task.",
-		parameters: controlTool,
-		async execute(_toolCallId, params) {
-			if (CHILD_PROCESS) childToolError();
-			const agent = await manager.resume(params.id, params.prompt);
-			return { content: [{ type: "text", text: `Subagent resumed.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }], details: agent };
-		},
-	});
-
-	pi.registerTool({
 		name: "AgentStop",
 		label: "Agent Stop",
 		description: "Stops a subagent process.",

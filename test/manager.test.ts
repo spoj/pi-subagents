@@ -154,6 +154,7 @@ describe("subagent manager", () => {
 
 		expect(started.status).toBe("running");
 		expect(manager.list()[0]).toMatchObject({ status: "completed", turns: 1, lastOutput: "done" });
+		expect(child.stopCalls).toBe(1);
 		expect(settled).toHaveLength(1);
 	});
 
@@ -233,19 +234,6 @@ describe("subagent manager", () => {
 		expect(manager.list()[0].status).toBe("failed");
 	});
 
-	it("reports a resume failure exactly once", async () => {
-		const settled: SubagentSnapshot[] = [];
-		const manager = createManager(settled);
-		const started = await manager.start(context, "first", {});
-		mocks.children[0].emit({ type: "agent_settled" });
-		mocks.promptError = new Error("resume failed");
-
-		await expect(manager.resume(started.id, "second")).rejects.toThrow("Could not resume");
-
-		expect(settled).toHaveLength(2);
-		expect(settled[1]).toMatchObject({ id: started.id, status: "failed", error: "resume failed" });
-	});
-
 	it("stops an active child and settles it once", async () => {
 		const settled: SubagentSnapshot[] = [];
 		const manager = createManager(settled);
@@ -293,45 +281,12 @@ describe("subagent manager", () => {
 		expect(manager.list()[0].status).toBe("failed");
 	});
 
-	it("resumes a settled child without creating another process", async () => {
+	it("does not change a completed child to stopped", async () => {
 		const manager = createManager();
-		const started = await manager.start(context, "first", {});
-		const child = mocks.children[0];
-		child.emit({ type: "agent_settled" });
+		const started = await manager.start(context, "work", {});
+		mocks.children[0].emit({ type: "agent_settled" });
 
-		const resumed = await manager.resume(started.id, "second");
-
-		expect(resumed.status).toBe("running");
-		expect(mocks.children).toHaveLength(1);
-		expect(child.prompts).toEqual(["first", "second"]);
-	});
-
-	it("does not let shutdown race an in-flight resume", async () => {
-		const manager = createManager();
-		const started = await manager.start(context, "first", {});
-		const child = mocks.children[0];
-		child.emit({ type: "agent_settled" });
-		child.exit({ code: 0, signal: null });
-
-		let releaseStart!: () => void;
-		mocks.startGate = new Promise<void>((resolve) => {
-			releaseStart = resolve;
-		});
-		const resuming = manager.resume(started.id, "second");
-		await Promise.resolve();
-		const resumedChild = mocks.children[1];
-
-		let shutdownSettled = false;
-		const shuttingDown = manager.shutdown().then(() => {
-			shutdownSettled = true;
-		});
-		await Promise.resolve();
-		expect(shutdownSettled).toBe(false);
-
-		const resumeFailure = expect(resuming).rejects.toThrow("Could not resume");
-		releaseStart();
-		await resumeFailure;
-		await shuttingDown;
-		expect(resumedChild.prompts).toEqual([]);
+		await expect(manager.stop(started.id)).rejects.toThrow(`${started.id} is not running`);
+		expect(manager.list()[0].status).toBe("completed");
 	});
 });

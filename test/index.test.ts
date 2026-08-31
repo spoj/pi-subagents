@@ -61,8 +61,11 @@ describe("subagent tools", () => {
 		};
 
 		piSubagents(pi as never);
+		const toolNames = pi.registerTool.mock.calls.map(([tool]) => tool.name);
 		const agentTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Agent")?.[0];
 		const properties = agentTool.parameters.properties;
+
+		expect(toolNames).toEqual(["Agent", "AgentSteer", "AgentStop"]);
 
 		expect(properties).toHaveProperty("task");
 		expect(properties).not.toHaveProperty("advanced_options");
