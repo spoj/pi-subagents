@@ -117,6 +117,23 @@ describe("fork tools", () => {
 		expect(rendered(stop)).toContain("Fork Stop fork-1234");
 	});
 
+	it("tells delegators to build on inherited context", async () => {
+		delete process.env.PI_FORK_CHILD;
+		const { default: piTinyFork } = await import("../src/index.ts");
+		const pi = {
+			registerTool: vi.fn(),
+			on: vi.fn(),
+			sendMessage: vi.fn(),
+		};
+
+		piTinyFork(pi as never);
+		const handler = pi.on.mock.calls.find(([event]) => event === "before_agent_start")?.[1];
+		const result = handler({ systemPrompt: "base prompt" });
+
+		expect(result.systemPrompt).toContain("base prompt");
+		expect(result.systemPrompt).toContain("ask for the incremental output needed, not a recap");
+	});
+
 	it("normalizes null options before starting", async () => {
 		delete process.env.PI_FORK_CHILD;
 		const { default: piTinyFork } = await import("../src/index.ts");

@@ -36,14 +36,14 @@ Each child gets a new session file containing the parent session's path up to th
 
 ```text
 <delegated-task>
-This user message marks the fork point. Treat the inherited conversation as reference context, not as a live conversation to continue. Execute only the task below.
+This user message marks the fork point. Treat the inherited conversation as established reference context, not as a live conversation to continue. Execute only the task below. Do not restate facts, structure, or reasoning already clear from the inherited conversation. Focus on new findings, corrections, implications, and the requested output. If the task requires a self-contained result, include only the minimum inherited background needed.
 
 Task:
 ...
 </delegated-task>
 ```
 
-The extension appends the same delegation guidance to the system prompt in both parent and child processes. It identifies a user message containing `<delegated-task>` as the delegated task marker. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
+The extension appends delegation guidance to the system prompt in both parent and child processes, while the `<delegated-task>` message adds child-specific guidance to build on inherited context without recapping it. It identifies a user message containing `<delegated-task>` as the delegated task marker. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
 
 When a child settles, the parent immediately receives its status, ID, transcript path, and final text in a steering message. The parent can inspect the full transcripts with Pi's existing `read` tool. A compact human-only widget shows known child activity.
 

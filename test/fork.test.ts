@@ -95,8 +95,11 @@ describe("fork creation", () => {
 		expect(entries[0].cwd).toBe(resolve(parent.getCwd(), "worktree"));
 	});
 
-	it("adds a working-directory notice only for explicit cwd values", () => {
-		expect(delegatedTask("work")).not.toContain("Your working directory has been switched");
+	it("adds inherited-context guidance and an explicit working-directory notice", () => {
+		const inherited = delegatedTask("work");
+		expect(inherited).toContain("Treat the inherited conversation as established reference context");
+		expect(inherited).toContain("Do not restate facts, structure, or reasoning already clear");
+		expect(inherited).not.toContain("Your working directory has been switched");
 		expect(delegatedTask("work", "/tmp/worktree")).toContain(
 			"Your working directory has been switched to /tmp/worktree.",
 		);

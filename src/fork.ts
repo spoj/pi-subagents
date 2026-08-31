@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const DELEGATED_TASK_PREFIX = `<delegated-task>
-This user message marks the fork point. Treat the inherited conversation as reference context, not as a live conversation to continue. Execute only the task below.
+This user message marks the fork point. Treat the inherited conversation as established reference context, not as a live conversation to continue. Execute only the task below. Do not restate facts, structure, or reasoning already clear from the inherited conversation. Focus on new findings, corrections, implications, and the requested output. If the task requires a self-contained result, include only the minimum inherited background needed.
 
 Task:
 `;
