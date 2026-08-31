@@ -43,7 +43,7 @@ Task:
 </delegated-task>
 ```
 
-The extension appends delegation guidance to the system prompt in both parent and child processes, while the `<delegated-task>` message adds child-specific guidance to build on inherited context without recapping it. It identifies a user message containing `<delegated-task>` as the delegated task marker. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
+The extension appends fork-tool and child-role guidance to the system prompt in both parent and child processes, while the `<delegated-task>` message provides the task-specific context and reporting guidance. It identifies a user message containing `<delegated-task>` as the delegated task marker. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
 
 When a child settles, the parent immediately receives its status, ID, transcript path, and final text in a steering message. The parent can inspect the full transcripts with Pi's existing `read` tool. A compact human-only widget shows known child activity.
 
