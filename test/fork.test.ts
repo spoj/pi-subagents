@@ -29,8 +29,8 @@ function assistant(content: AssistantMessage["content"]): AssistantMessage {
 }
 
 function makeSession(withPreviousAssistant = true): SessionManager {
-	const cwd = mkdtempSync(join(tmpdir(), "pi-subagents-cwd-"));
-	const sessionDir = mkdtempSync(join(tmpdir(), "pi-subagents-sessions-"));
+	const cwd = mkdtempSync(join(tmpdir(), "pi-tiny-fork-cwd-"));
+	const sessionDir = mkdtempSync(join(tmpdir(), "pi-tiny-fork-sessions-"));
 	const session = SessionManager.create(cwd, sessionDir);
 	session.appendMessage({ role: "user", content: "first", timestamp: Date.now() });
 	if (withPreviousAssistant) {
@@ -41,8 +41,8 @@ function makeSession(withPreviousAssistant = true): SessionManager {
 		assistant([
 			{
 				type: "toolCall",
-				id: "call-agent",
-				name: "Agent",
+				id: "call-fork",
+				name: "Fork",
 				arguments: { task: "work" },
 			},
 		]),
@@ -51,7 +51,7 @@ function makeSession(withPreviousAssistant = true): SessionManager {
 }
 
 describe("fork creation", () => {
-	it("forks before the current Agent call and preserves the stable prefix", () => {
+	it("forks before the current Fork call and preserves the stable prefix", () => {
 		const parent = makeSession();
 		const childPath = createForkedSession(parent);
 		const entries = readFileSync(childPath, "utf8")
@@ -67,7 +67,7 @@ describe("fork creation", () => {
 			"assistant",
 			"user",
 		]);
-		expect(entries.some((entry) => JSON.stringify(entry).includes("call-agent"))).toBe(false);
+		expect(entries.some((entry) => JSON.stringify(entry).includes("call-fork"))).toBe(false);
 	});
 
 	it("names the forked session", () => {
@@ -114,8 +114,8 @@ describe("fork creation", () => {
 		expect(entries.at(-1).message.content).toBe("delegate this");
 	});
 
-	it("requires the current assistant Agent call", () => {
-		const parent = SessionManager.create(mkdtempSync(join(tmpdir(), "pi-subagents-cwd-")), mkdtempSync(join(tmpdir(), "pi-subagents-sessions-")));
+	it("requires the current assistant Fork call", () => {
+		const parent = SessionManager.create(mkdtempSync(join(tmpdir(), "pi-tiny-fork-cwd-")), mkdtempSync(join(tmpdir(), "pi-tiny-fork-sessions-")));
 		parent.appendMessage({ role: "user", content: "hello", timestamp: Date.now() });
 		expect(() => forkPoint(parent)).toThrow("current assistant tool call");
 	});

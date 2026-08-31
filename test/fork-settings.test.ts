@@ -3,40 +3,40 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-	loadSubagentDefaults,
-	resolveSubagentOptions,
+	loadForkDefaults,
+	resolveForkOptions,
 	THINKING_LEVELS,
-} from "../src/subagent-settings.ts";
+} from "../src/fork-settings.ts";
 
-describe("subagent settings", () => {
+describe("fork settings", () => {
 	it("loads the dedicated defaults from settings.json", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pi-subagents-settings-"));
+		const dir = mkdtempSync(join(tmpdir(), "pi-tiny-fork-settings-"));
 		const path = join(dir, "settings.json");
 		writeFileSync(
 			path,
 			JSON.stringify({
-				defaultSubagentModel: "github-copilot/gpt-5.6-luna",
-				defaultSubagentThinkingLevel: "xhigh",
+				defaultForkModel: "github-copilot/gpt-5.6-luna",
+				defaultForkThinkingLevel: "xhigh",
 			}),
 		);
 
-		expect(loadSubagentDefaults(path)).toEqual({
+		expect(loadForkDefaults(path)).toEqual({
 			model: "github-copilot/gpt-5.6-luna",
 			thinkingLevel: "xhigh",
 		});
 	});
 
 	it("ignores invalid dedicated defaults", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pi-subagents-settings-"));
+		const dir = mkdtempSync(join(tmpdir(), "pi-tiny-fork-settings-"));
 		const path = join(dir, "settings.json");
-		writeFileSync(path, JSON.stringify({ defaultSubagentModel: 42, defaultSubagentThinkingLevel: "deep" }));
+		writeFileSync(path, JSON.stringify({ defaultForkModel: 42, defaultForkThinkingLevel: "deep" }));
 
-		expect(loadSubagentDefaults(path)).toEqual({});
+		expect(loadForkDefaults(path)).toEqual({});
 	});
 
 	it("gives direct arguments precedence over dedicated defaults", () => {
 		expect(
-			resolveSubagentOptions(
+			resolveForkOptions(
 				{ model: "provider/direct", thinkingLevel: "low" },
 				{ model: "provider/default", thinkingLevel: "high" },
 			),

@@ -2,93 +2,93 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { SubagentManager, type SubagentSnapshot } from "./manager.ts";
+import { ForkManager, type ForkSnapshot } from "./manager.ts";
 import {
-	loadSubagentDefaults,
-	resolveSubagentOptions,
+	loadForkDefaults,
+	resolveForkOptions,
 	THINKING_LEVELS,
-	type SubagentThinkingLevel,
-} from "./subagent-settings.ts";
+	type ForkThinkingLevel,
+} from "./fork-settings.ts";
 
-const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
-const WIDGET_KEY = "pi-subagents";
-const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Use Agent({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. Focus delegated task prompts on the output contract. Use AgentSteer for relevant context or direction that arises after the initial delegation point. If you see a user message containing "<delegated-task>" it marks the task for this delegated subagent. Treat the inherited conversation as context and execute only that delegated task. Avoid repeating or over-explaining context already clear from the inherited conversation. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
+const CHILD_PROCESS = process.env.PI_FORK_CHILD === "1";
+const WIDGET_KEY = "pi-tiny-fork";
+const DELEGATION_SYSTEM_PROMPT = `You have access to fork tools. Use Fork({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. Focus delegated task prompts on the output contract. Use ForkSteer for relevant context or direction that arises after the initial delegation point. If you see a user message containing "<delegated-task>" it marks the task for this delegated fork. Treat the inherited conversation as context and execute only that delegated task. Avoid repeating or over-explaining context already clear from the inherited conversation. If you are unsure whether this process is a fork, inspect the PI_FORK_CHILD environment variable with the shell; a value of "1" means this is a fork.`;
 
-const agentTool = Type.Object({
-	task: Type.String({ description: "Task sent to the forked subagent" }),
+const forkTool = Type.Object({
+	task: Type.String({ description: "Task sent to the forked child" }),
 	cwd: Type.Union([
 		Type.String({
 			description:
-				"Working directory for the subagent process. Relative paths resolve from the parent working directory; null inherits it",
+				"Working directory for the fork process. Relative paths resolve from the parent working directory; null inherits it",
 		}),
 		Type.Null(),
 	]),
 	model: Type.Union([
-		Type.String({ description: "Model identifier for the subagent; null uses the configured default" }),
+		Type.String({ description: "Model identifier for the fork; null uses the configured default" }),
 		Type.Null(),
 	]),
 	thinkingLevel: Type.Union([
 		StringEnum(THINKING_LEVELS, {
-			description: "Thinking level for the subagent; null uses the configured default",
+			description: "Thinking level for the fork; null uses the configured default",
 		}),
 		Type.Null(),
 	]),
 });
 
 const controlTool = Type.Object({
-	id: Type.String({ description: "Identifier of the subagent to control" }),
-	prompt: Type.String({ description: "Task or direction sent to the subagent" }),
+	id: Type.String({ description: "Identifier of the fork to control" }),
+	prompt: Type.String({ description: "Task or direction sent to the fork" }),
 });
 
 const stopTool = Type.Object({
-	id: Type.String({ description: "Identifier of the subagent to stop" }),
+	id: Type.String({ description: "Identifier of the fork to stop" }),
 });
 
 function childToolError(): never {
-	throw new Error("Subagent orchestration tools are unavailable inside a delegated subagent");
+	throw new Error("Fork orchestration tools are unavailable inside a delegated fork");
 }
 
-function renderWidget(ctx: ExtensionContext, manager: SubagentManager): void {
+function renderWidget(ctx: ExtensionContext, manager: ForkManager): void {
 	const running = manager.list().filter(isActive).length;
-	ctx.ui.setWidget(WIDGET_KEY, running > 0 ? [`${running} agents running`] : undefined);
+	ctx.ui.setWidget(WIDGET_KEY, running > 0 ? [`${running} forks running`] : undefined);
 }
 
-function resultText(agent: SubagentSnapshot): string {
-	const output = agent.lastOutput?.trim();
-	const status = agent.status === "completed" ? "completed" : agent.status;
+function resultText(fork: ForkSnapshot): string {
+	const output = fork.lastOutput?.trim();
+	const status = fork.status === "completed" ? "completed" : fork.status;
 	return [
-		`Subagent ${status}.`,
+		`Fork ${status}.`,
 		"",
-		`ID: ${agent.id}`,
-		`Transcript: ${agent.transcriptPath}`,
-		agent.error ? `Error: ${agent.error}` : output ? `Result:\n${output}` : "Result: (no final response; inspect the transcript)",
+		`ID: ${fork.id}`,
+		`Transcript: ${fork.transcriptPath}`,
+		fork.error ? `Error: ${fork.error}` : output ? `Result:\n${output}` : "Result: (no final response; inspect the transcript)",
 	].join("\n");
 }
 
-function isActive(agent: SubagentSnapshot): boolean {
-	return agent.status === "starting" || agent.status === "running";
+function isActive(fork: ForkSnapshot): boolean {
+	return fork.status === "starting" || fork.status === "running";
 }
 
-function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
+function registerTools(pi: ExtensionAPI, manager: ForkManager): void {
 	pi.registerTool({
-		name: "Agent",
-		label: "Agent",
+		name: "Fork",
+		label: "Fork",
 		description:
-			"Starts an asynchronous subagent that inherits the caller's context up to the point of delegation, and returns its ID and transcript path.",
-		parameters: agentTool,
+			"Starts an asynchronous fork that inherits the caller's context up to the point of delegation, and returns its ID and transcript path.",
+		parameters: forkTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
-			const launchOptions = resolveSubagentOptions(
+			const launchOptions = resolveForkOptions(
 				{
 					model: params.model ?? undefined,
-					thinkingLevel: (params.thinkingLevel ?? undefined) as SubagentThinkingLevel | undefined,
+					thinkingLevel: (params.thinkingLevel ?? undefined) as ForkThinkingLevel | undefined,
 				},
-				loadSubagentDefaults(),
+				loadForkDefaults(),
 			);
-			const agent = await manager.start(ctx, params.task, launchOptions, params.cwd ?? undefined);
+			const fork = await manager.start(ctx, params.task, launchOptions, params.cwd ?? undefined);
 			return {
-				content: [{ type: "text", text: `Subagent started.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }],
-				details: agent,
+				content: [{ type: "text", text: `Fork started.\n\nID: ${fork.id}\nTranscript: ${fork.transcriptPath}` }],
+				details: fork,
 			};
 		},
 		renderCall(params, theme) {
@@ -98,7 +98,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 				`thinking: ${params.thinkingLevel ?? "default"}`,
 			];
 			return new Text(
-				`${theme.fg("toolTitle", theme.bold("Agent"))} ${theme.fg("toolOutput", params.task ?? "")}\n${theme.fg("muted", options.join(" · "))}`,
+				`${theme.fg("toolTitle", theme.bold("Fork"))} ${theme.fg("toolOutput", params.task ?? "")}\n${theme.fg("muted", options.join(" · "))}`,
 				0,
 				0,
 			);
@@ -106,18 +106,18 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	});
 
 	pi.registerTool({
-		name: "AgentSteer",
-		label: "Agent Steer",
-		description: "Sends a steering message to a running subagent.",
+		name: "ForkSteer",
+		label: "Fork Steer",
+		description: "Sends a steering message to a running fork.",
 		parameters: controlTool,
 		async execute(_toolCallId, params) {
 			if (CHILD_PROCESS) childToolError();
-			const agent = await manager.steer(params.id, params.prompt);
-			return { content: [{ type: "text", text: `Steering sent.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }], details: agent };
+			const fork = await manager.steer(params.id, params.prompt);
+			return { content: [{ type: "text", text: `Steering sent.\n\nID: ${fork.id}\nTranscript: ${fork.transcriptPath}` }], details: fork };
 		},
 		renderCall(params, theme) {
 			return new Text(
-				`${theme.fg("toolTitle", theme.bold("Agent Steer"))} ${theme.fg("accent", params.id ?? "")}\n${theme.fg("toolOutput", params.prompt ?? "")}`,
+				`${theme.fg("toolTitle", theme.bold("Fork Steer"))} ${theme.fg("accent", params.id ?? "")}\n${theme.fg("toolOutput", params.prompt ?? "")}`,
 				0,
 				0,
 			);
@@ -125,18 +125,18 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	});
 
 	pi.registerTool({
-		name: "AgentStop",
-		label: "Agent Stop",
-		description: "Stops a subagent process.",
+		name: "ForkStop",
+		label: "Fork Stop",
+		description: "Stops a fork process.",
 		parameters: stopTool,
 		async execute(_toolCallId, params) {
 			if (CHILD_PROCESS) childToolError();
-			const agent = await manager.stop(params.id);
-			return { content: [{ type: "text", text: `Subagent stopped.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }], details: agent };
+			const fork = await manager.stop(params.id);
+			return { content: [{ type: "text", text: `Fork stopped.\n\nID: ${fork.id}\nTranscript: ${fork.transcriptPath}` }], details: fork };
 		},
 		renderCall(params, theme) {
 			return new Text(
-				`${theme.fg("toolTitle", theme.bold("Agent Stop"))} ${theme.fg("accent", params.id ?? "")}`,
+				`${theme.fg("toolTitle", theme.bold("Fork Stop"))} ${theme.fg("accent", params.id ?? "")}`,
 				0,
 				0,
 			);
@@ -144,21 +144,21 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	});
 }
 
-export default function piSubagents(pi: ExtensionAPI): void {
+export default function piTinyFork(pi: ExtensionAPI): void {
 	let uiContext: ExtensionContext | undefined;
-	let manager: SubagentManager;
-	manager = new SubagentManager({
+	let manager: ForkManager;
+	manager = new ForkManager({
 		onUpdate: () => {
 			if (uiContext) renderWidget(uiContext, manager);
 		},
-		onSettled: (agent) => {
+		onSettled: (fork) => {
 			if (CHILD_PROCESS) return;
 			pi.sendMessage(
 				{
-					customType: "pi-subagents",
-					content: resultText(agent),
+					customType: "pi-tiny-fork",
+					content: resultText(fork),
 					display: true,
-					details: agent,
+					details: fork,
 				},
 				{ deliverAs: "steer", triggerTurn: true },
 			);

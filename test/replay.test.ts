@@ -29,7 +29,7 @@ function assistant(model: string) {
 
 describe("compatible replay", () => {
 	it("loads top-level model families from settings", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pi-subagents-replay-"));
+		const dir = mkdtempSync(join(tmpdir(), "pi-tiny-fork-replay-"));
 		const path = join(dir, "settings.json");
 		writeFileSync(path, JSON.stringify({ replayCompatibleModels: [[sol, luna]] }));
 
@@ -40,7 +40,7 @@ describe("compatible replay", () => {
 	});
 
 	it("does not expose or accept malformed family values", () => {
-		const dir = mkdtempSync(join(tmpdir(), "pi-subagents-replay-"));
+		const dir = mkdtempSync(join(tmpdir(), "pi-tiny-fork-replay-"));
 		const path = join(dir, "settings.json");
 		writeFileSync(path, JSON.stringify({ replayCompatibleModels: [[sol, 3], "not-a-family", []] }));
 

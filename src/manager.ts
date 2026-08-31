@@ -3,24 +3,24 @@ import { resolve } from "node:path";
 import { createForkedSession, delegatedTask } from "./fork.ts";
 import { RpcChild, type ChildEventListener, type ChildExit } from "./rpc.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { SubagentLaunchOptions } from "./subagent-settings.ts";
+import type { ForkLaunchOptions } from "./fork-settings.ts";
 
-export type SubagentStatus = "starting" | "running" | "completed" | "failed" | "stopped";
+export type ForkStatus = "starting" | "running" | "completed" | "failed" | "stopped";
 
-export type SubagentSnapshot = {
+export type ForkSnapshot = {
 	id: string;
 	transcriptPath: string;
-	status: SubagentStatus;
+	status: ForkStatus;
 	activity?: string;
 	turns: number;
 	lastOutput?: string;
 	error?: string;
 };
 
-type SubagentRecord = SubagentSnapshot & {
+type ForkRecord = ForkSnapshot & {
 	cwd: string;
 	cwdExplicit: boolean;
-	launchOptions: SubagentLaunchOptions;
+	launchOptions: ForkLaunchOptions;
 	child?: RpcChild;
 	cleanup?: Promise<void>;
 	lastStopReason?: string;
@@ -31,13 +31,13 @@ type SubagentRecord = SubagentSnapshot & {
 
 type ManagerOptions = {
 	onUpdate: () => void;
-	onSettled: (agent: SubagentSnapshot) => void;
+	onSettled: (fork: ForkSnapshot) => void;
 };
 
-function newId(existing: Map<string, SubagentRecord>): string {
+function newId(existing: Map<string, ForkRecord>): string {
 	let id = "";
 	do {
-		id = `agent-${randomUUID().slice(0, 8)}`;
+		id = `fork-${randomUUID().slice(0, 8)}`;
 	} while (existing.has(id));
 	return id;
 }
@@ -60,33 +60,33 @@ function errorText(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-export class SubagentManager {
-	private readonly agents = new Map<string, SubagentRecord>();
+export class ForkManager {
+	private readonly forks = new Map<string, ForkRecord>();
 	private readonly starts = new Set<Promise<unknown>>();
 	private shuttingDown = false;
 
 	constructor(private readonly options: ManagerOptions) {}
 
-	list(): SubagentSnapshot[] {
-		return Array.from(this.agents.values()).map((agent) => this.snapshot(agent));
+	list(): ForkSnapshot[] {
+		return Array.from(this.forks.values()).map((fork) => this.snapshot(fork));
 	}
 
 	async start(
 		ctx: ExtensionContext,
 		prompt: string,
-		launchOptions: SubagentLaunchOptions,
+		launchOptions: ForkLaunchOptions,
 		cwd?: string,
-	): Promise<SubagentSnapshot> {
-		if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
+	): Promise<ForkSnapshot> {
+		if (this.shuttingDown) throw new Error("Fork manager is shutting down");
 
 		const cwdExplicit = cwd !== undefined;
-		const agentCwd = cwdExplicit ? resolve(ctx.cwd, cwd) : ctx.cwd;
-		const id = newId(this.agents);
-		const transcriptPath = createForkedSession(ctx.sessionManager, cwdExplicit ? agentCwd : undefined, prompt);
-		const agent: SubagentRecord = {
+		const forkCwd = cwdExplicit ? resolve(ctx.cwd, cwd) : ctx.cwd;
+		const id = newId(this.forks);
+		const transcriptPath = createForkedSession(ctx.sessionManager, cwdExplicit ? forkCwd : undefined, prompt);
+		const fork: ForkRecord = {
 			id,
 			transcriptPath,
-			cwd: agentCwd,
+			cwd: forkCwd,
 			cwdExplicit,
 			launchOptions,
 			status: "starting",
@@ -95,11 +95,11 @@ export class SubagentManager {
 			settled: false,
 			operation: Promise.resolve(),
 		};
-		this.agents.set(id, agent);
+		this.forks.set(id, fork);
 		this.options.onUpdate();
 
-		agent.settled = false;
-		const operation = this.launch(agent, prompt);
+		fork.settled = false;
+		const operation = this.launch(fork, prompt);
 		this.starts.add(operation);
 		try {
 			return await operation;
@@ -108,106 +108,106 @@ export class SubagentManager {
 		}
 	}
 
-	async steer(id: string, prompt: string): Promise<SubagentSnapshot> {
-		const agent = this.require(id);
-		return this.enqueue(agent, async () => {
-			if (agent.status !== "running" || !agent.child?.isAlive()) {
-				throw new Error(`${id} is not running; start a new agent to continue the work`);
+	async steer(id: string, prompt: string): Promise<ForkSnapshot> {
+		const fork = this.require(id);
+		return this.enqueue(fork, async () => {
+			if (fork.status !== "running" || !fork.child?.isAlive()) {
+				throw new Error(`${id} is not running; start a new fork to continue the work`);
 			}
-			await agent.child.steer(prompt);
-			return this.snapshot(agent);
+			await fork.child.steer(prompt);
+			return this.snapshot(fork);
 		});
 	}
 
-	async stop(id: string): Promise<SubagentSnapshot> {
-		const agent = this.require(id);
-		return this.enqueue(agent, async () => {
-			if (agent.status !== "starting" && agent.status !== "running") {
+	async stop(id: string): Promise<ForkSnapshot> {
+		const fork = this.require(id);
+		return this.enqueue(fork, async () => {
+			if (fork.status !== "starting" && fork.status !== "running") {
 				throw new Error(`${id} is not running`);
 			}
-			agent.stopRequested = true;
-			if (agent.child?.isAlive()) {
-				void agent.child.abort().catch(() => undefined);
-				await agent.child.stop();
+			fork.stopRequested = true;
+			if (fork.child?.isAlive()) {
+				void fork.child.abort().catch(() => undefined);
+				await fork.child.stop();
 			}
-			agent.status = "stopped";
-			agent.activity = undefined;
+			fork.status = "stopped";
+			fork.activity = undefined;
 			this.options.onUpdate();
-			if (!this.shuttingDown) this.settle(agent);
-			return this.snapshot(agent);
+			if (!this.shuttingDown) this.settle(fork);
+			return this.snapshot(fork);
 		});
 	}
 
 	async shutdown(): Promise<void> {
 		this.shuttingDown = true;
 		await Promise.all([
-			...Array.from(this.agents.values()).map(async (agent) => {
-				agent.stopRequested = true;
-				agent.cleanup ??= agent.child?.isAlive() ? agent.child.stop() : Promise.resolve();
-				await agent.cleanup;
+			...Array.from(this.forks.values()).map(async (fork) => {
+				fork.stopRequested = true;
+				fork.cleanup ??= fork.child?.isAlive() ? fork.child.stop() : Promise.resolve();
+				await fork.cleanup;
 			}),
-			...Array.from(this.agents.values(), (agent) => agent.operation),
+			...Array.from(this.forks.values(), (fork) => fork.operation),
 			...Array.from(this.starts, (start) => start.catch(() => undefined)),
 		]);
 	}
 
-	private async launch(agent: SubagentRecord, prompt: string): Promise<SubagentSnapshot> {
+	private async launch(fork: ForkRecord, prompt: string): Promise<ForkSnapshot> {
 		try {
-			await this.startProcess(agent);
-			if (this.shuttingDown) throw new Error("Subagent manager is shutting down");
-			agent.status = "running";
+			await this.startProcess(fork);
+			if (this.shuttingDown) throw new Error("Fork manager is shutting down");
+			fork.status = "running";
 			this.options.onUpdate();
-			await agent.child!.prompt(delegatedTask(prompt, agent.cwdExplicit ? agent.cwd : undefined));
-			return this.snapshot(agent);
+			await fork.child!.prompt(delegatedTask(prompt, fork.cwdExplicit ? fork.cwd : undefined));
+			return this.snapshot(fork);
 		} catch (error) {
-			agent.stopRequested = true;
-			if (agent.child?.isAlive()) await agent.child.stop().catch(() => undefined);
-			agent.stopRequested = false;
-			this.fail(agent, errorText(error));
-			if (!this.shuttingDown) this.settle(agent);
-			throw new Error(`Could not start ${agent.id}: ${errorText(error)}`);
+			fork.stopRequested = true;
+			if (fork.child?.isAlive()) await fork.child.stop().catch(() => undefined);
+			fork.stopRequested = false;
+			this.fail(fork, errorText(error));
+			if (!this.shuttingDown) this.settle(fork);
+			throw new Error(`Could not start ${fork.id}: ${errorText(error)}`);
 		}
 	}
 
-	private async startProcess(agent: SubagentRecord): Promise<void> {
-		const child = new RpcChild(agent.cwd, agent.transcriptPath, agent.launchOptions);
-		agent.child = child;
-		child.onEvent(this.eventListener(agent));
-		child.onExit((exit) => this.handleExit(agent, child, exit));
+	private async startProcess(fork: ForkRecord): Promise<void> {
+		const child = new RpcChild(fork.cwd, fork.transcriptPath, fork.launchOptions);
+		fork.child = child;
+		child.onEvent(this.eventListener(fork));
+		child.onExit((exit) => this.handleExit(fork, child, exit));
 		await child.start();
 	}
 
-	private eventListener(agent: SubagentRecord): ChildEventListener {
+	private eventListener(fork: ForkRecord): ChildEventListener {
 		return (event) => {
 			if (this.shuttingDown) return;
 			switch (event.type) {
 				case "turn_start":
-					agent.turns++;
-					agent.status = "running";
+					fork.turns++;
+					fork.status = "running";
 					break;
 				case "tool_execution_start":
-					agent.activity = event.toolName;
+					fork.activity = event.toolName;
 					break;
 				case "tool_execution_end":
-					if (agent.activity === event.toolName) agent.activity = undefined;
+					if (fork.activity === event.toolName) fork.activity = undefined;
 					break;
 				case "message_end":
 					if (event.message.role === "assistant") {
-						agent.lastOutput = textFromAssistant(event.message) || undefined;
-						agent.lastStopReason = event.message.stopReason;
-						agent.error = event.message.errorMessage;
+						fork.lastOutput = textFromAssistant(event.message) || undefined;
+						fork.lastStopReason = event.message.stopReason;
+						fork.error = event.message.errorMessage;
 					}
 					break;
 				case "agent_settled":
-					if (!agent.stopRequested && !agent.settled) {
-						if (agent.lastStopReason === "error" || agent.lastStopReason === "aborted") {
-							agent.status = "failed";
-							agent.error = agent.error ?? "Subagent stopped with an error";
+					if (!fork.stopRequested && !fork.settled) {
+						if (fork.lastStopReason === "error" || fork.lastStopReason === "aborted") {
+							fork.status = "failed";
+							fork.error = fork.error ?? "Fork stopped with an error";
 						} else {
-							agent.status = "completed";
+							fork.status = "completed";
 						}
-						agent.activity = undefined;
-						this.settle(agent);
+						fork.activity = undefined;
+						this.settle(fork);
 					}
 					break;
 			}
@@ -215,55 +215,55 @@ export class SubagentManager {
 		};
 	}
 
-	private handleExit(agent: SubagentRecord, child: RpcChild, exit: ChildExit): void {
-		if (agent.child !== child || this.shuttingDown || agent.stopRequested) return;
-		if (agent.status === "completed" || agent.status === "failed") return;
-		agent.status = "failed";
-		agent.activity = undefined;
-		agent.error = child.getStderr().trim() || `Process exited with ${exit.code ?? exit.signal ?? "no status"}`;
+	private handleExit(fork: ForkRecord, child: RpcChild, exit: ChildExit): void {
+		if (fork.child !== child || this.shuttingDown || fork.stopRequested) return;
+		if (fork.status === "completed" || fork.status === "failed") return;
+		fork.status = "failed";
+		fork.activity = undefined;
+		fork.error = child.getStderr().trim() || `Process exited with ${exit.code ?? exit.signal ?? "no status"}`;
 		this.options.onUpdate();
-		this.settle(agent);
+		this.settle(fork);
 	}
 
-	private settle(agent: SubagentRecord): void {
-		if (agent.settled) return;
-		agent.settled = true;
-		agent.stopRequested = true;
-		if (agent.child?.isAlive()) agent.cleanup = agent.child.stop().catch(() => undefined);
-		this.options.onSettled(this.snapshot(agent));
+	private settle(fork: ForkRecord): void {
+		if (fork.settled) return;
+		fork.settled = true;
+		fork.stopRequested = true;
+		if (fork.child?.isAlive()) fork.cleanup = fork.child.stop().catch(() => undefined);
+		this.options.onSettled(this.snapshot(fork));
 	}
 
-	private fail(agent: SubagentRecord, message: string): void {
-		agent.status = "failed";
-		agent.activity = undefined;
-		agent.error = message;
+	private fail(fork: ForkRecord, message: string): void {
+		fork.status = "failed";
+		fork.activity = undefined;
+		fork.error = message;
 		this.options.onUpdate();
 	}
 
-	private require(id: string): SubagentRecord {
-		const agent = this.agents.get(id);
-		if (!agent) throw new Error(`Unknown subagent: ${id}`);
-		return agent;
+	private require(id: string): ForkRecord {
+		const fork = this.forks.get(id);
+		if (!fork) throw new Error(`Unknown fork: ${id}`);
+		return fork;
 	}
 
-	private enqueue<T>(agent: SubagentRecord, operation: () => Promise<T>): Promise<T> {
-		const next = agent.operation.then(operation, operation);
-		agent.operation = next.then(
+	private enqueue<T>(fork: ForkRecord, operation: () => Promise<T>): Promise<T> {
+		const next = fork.operation.then(operation, operation);
+		fork.operation = next.then(
 			() => undefined,
 			() => undefined,
 		);
 		return next;
 	}
 
-	private snapshot(agent: SubagentRecord): SubagentSnapshot {
+	private snapshot(fork: ForkRecord): ForkSnapshot {
 		return {
-			id: agent.id,
-			transcriptPath: agent.transcriptPath,
-			status: agent.status,
-			...(agent.activity ? { activity: agent.activity } : {}),
-			turns: agent.turns,
-			...(agent.lastOutput ? { lastOutput: agent.lastOutput } : {}),
-			...(agent.error ? { error: agent.error } : {}),
+			id: fork.id,
+			transcriptPath: fork.transcriptPath,
+			status: fork.status,
+			...(fork.activity ? { activity: fork.activity } : {}),
+			turns: fork.turns,
+			...(fork.lastOutput ? { lastOutput: fork.lastOutput } : {}),
+			...(fork.error ? { error: fork.error } : {}),
 		};
 	}
 }

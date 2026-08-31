@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { SubagentManager, type SubagentSnapshot } from "../src/manager.ts";
+import { ForkManager, type ForkSnapshot } from "../src/manager.ts";
 
 const mocks = vi.hoisted(() => {
 	type Listener = (value: unknown) => void;
@@ -119,10 +119,10 @@ vi.mock("../src/fork.ts", () => ({
 
 const context = { cwd: "/tmp/parent", sessionManager: {} } as unknown as ExtensionContext;
 
-function createManager(settled: SubagentSnapshot[] = []): SubagentManager {
-	return new SubagentManager({
+function createManager(settled: ForkSnapshot[] = []): ForkManager {
+	return new ForkManager({
 		onUpdate: () => undefined,
-		onSettled: (agent) => settled.push(agent),
+		onSettled: (fork) => settled.push(fork),
 	});
 }
 
@@ -134,9 +134,9 @@ beforeEach(() => {
 	mocks.promptError = undefined;
 });
 
-describe("subagent manager", () => {
+describe("fork manager", () => {
 	it("tracks turns, final output, and completion", async () => {
-		const settled: SubagentSnapshot[] = [];
+		const settled: ForkSnapshot[] = [];
 		const manager = createManager(settled);
 		const started = await manager.start(context, "work", {});
 		const child = mocks.children[0];
@@ -180,7 +180,7 @@ describe("subagent manager", () => {
 	});
 
 	it("waits for queued operations during shutdown without settling them", async () => {
-		const settled: SubagentSnapshot[] = [];
+		const settled: ForkSnapshot[] = [];
 		const manager = createManager(settled);
 		const started = await manager.start(context, "work", {});
 		let releaseSteer!: () => void;
@@ -206,7 +206,7 @@ describe("subagent manager", () => {
 	});
 
 	it("reports an unexpected child exit as a failure", async () => {
-		const settled: SubagentSnapshot[] = [];
+		const settled: ForkSnapshot[] = [];
 		const manager = createManager(settled);
 		const started = await manager.start(context, "work", {});
 
@@ -221,7 +221,7 @@ describe("subagent manager", () => {
 	});
 
 	it("reports a startup failure exactly once", async () => {
-		const settled: SubagentSnapshot[] = [];
+		const settled: ForkSnapshot[] = [];
 		mocks.startError = new Error("startup failed");
 		const manager = createManager(settled);
 
@@ -235,7 +235,7 @@ describe("subagent manager", () => {
 	});
 
 	it("stops an active child and settles it once", async () => {
-		const settled: SubagentSnapshot[] = [];
+		const settled: ForkSnapshot[] = [];
 		const manager = createManager(settled);
 		const started = await manager.start(context, "work", {});
 		const child = mocks.children[0];

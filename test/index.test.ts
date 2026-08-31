@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SubagentSnapshot } from "../src/manager.ts";
+import type { ForkSnapshot } from "../src/manager.ts";
 
 const mocks = vi.hoisted(() => {
-	let managerOptions: { onSettled: (agent: SubagentSnapshot) => void } | undefined;
+	let managerOptions: { onSettled: (fork: ForkSnapshot) => void } | undefined;
 	const startCalls: Array<{
 		ctx: unknown;
 		prompt: string;
@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => {
 			cwd?: string,
 		) {
 			startCalls.push({ ctx, prompt, launchOptions, cwd });
-			return { id: "agent-1", transcriptPath: "/tmp/agent-1.jsonl", status: "starting", turns: 0 };
+			return { id: "fork-1", transcriptPath: "/tmp/fork-1.jsonl", status: "starting", turns: 0 };
 		}
 	}
 
@@ -39,33 +39,33 @@ const mocks = vi.hoisted(() => {
 	};
 });
 
-vi.mock("../src/manager.ts", () => ({ SubagentManager: mocks.FakeManager }));
+vi.mock("../src/manager.ts", () => ({ ForkManager: mocks.FakeManager }));
 
-const originalChildFlag = process.env.PI_SUBAGENT_CHILD;
+const originalChildFlag = process.env.PI_FORK_CHILD;
 
 afterEach(() => {
-	if (originalChildFlag === undefined) delete process.env.PI_SUBAGENT_CHILD;
-	else process.env.PI_SUBAGENT_CHILD = originalChildFlag;
+	if (originalChildFlag === undefined) delete process.env.PI_FORK_CHILD;
+	else process.env.PI_FORK_CHILD = originalChildFlag;
 	mocks.startCalls.length = 0;
 	vi.resetModules();
 });
 
-describe("subagent tools", () => {
+describe("fork tools", () => {
 	it("exposes task and flat nullable options", async () => {
-		delete process.env.PI_SUBAGENT_CHILD;
-		const { default: piSubagents } = await import("../src/index.ts");
+		delete process.env.PI_FORK_CHILD;
+		const { default: piTinyFork } = await import("../src/index.ts");
 		const pi = {
 			registerTool: vi.fn(),
 			on: vi.fn(),
 			sendMessage: vi.fn(),
 		};
 
-		piSubagents(pi as never);
+		piTinyFork(pi as never);
 		const toolNames = pi.registerTool.mock.calls.map(([tool]) => tool.name);
-		const agentTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Agent")?.[0];
-		const properties = agentTool.parameters.properties;
+		const forkTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Fork")?.[0];
+		const properties = forkTool.parameters.properties;
 
-		expect(toolNames).toEqual(["Agent", "AgentSteer", "AgentStop"]);
+		expect(toolNames).toEqual(["Fork", "ForkSteer", "ForkStop"]);
 
 		expect(properties).toHaveProperty("task");
 		expect(properties).not.toHaveProperty("advanced_options");
@@ -73,7 +73,7 @@ describe("subagent tools", () => {
 		expect(properties).toEqual(
 			expect.objectContaining({ model: expect.any(Object), thinkingLevel: expect.any(Object), cwd: expect.any(Object) }),
 		);
-		expect(agentTool.parameters.required).toEqual(["task", "cwd", "model", "thinkingLevel"]);
+		expect(forkTool.parameters.required).toEqual(["task", "cwd", "model", "thinkingLevel"]);
 		expect(properties.cwd.anyOf).toEqual(
 			expect.arrayContaining([expect.objectContaining({ type: "string" }), { type: "null" }]),
 		);
@@ -83,9 +83,9 @@ describe("subagent tools", () => {
 		expect(properties.thinkingLevel.anyOf).toEqual(expect.arrayContaining([{ type: "null" }]));
 	});
 
-	it("renders subagent tool arguments", async () => {
-		delete process.env.PI_SUBAGENT_CHILD;
-		const { default: piSubagents } = await import("../src/index.ts");
+	it("renders fork tool arguments", async () => {
+		delete process.env.PI_FORK_CHILD;
+		const { default: piTinyFork } = await import("../src/index.ts");
 		const pi = {
 			registerTool: vi.fn(),
 			on: vi.fn(),
@@ -96,39 +96,39 @@ describe("subagent tools", () => {
 			bold: (text: string) => text,
 		};
 
-		piSubagents(pi as never);
+		piTinyFork(pi as never);
 		const tools = Object.fromEntries(pi.registerTool.mock.calls.map(([tool]) => [tool.name, tool]));
-		const agent = tools.Agent.renderCall(
+		const fork = tools.Fork.renderCall(
 			{ task: "inspect rendering", cwd: null, model: null, thinkingLevel: null },
 			theme as never,
 			{} as never,
 		);
-		const steer = tools.AgentSteer.renderCall(
-			{ id: "agent-1234", prompt: "check the tests" },
+		const steer = tools.ForkSteer.renderCall(
+			{ id: "fork-1234", prompt: "check the tests" },
 			theme as never,
 			{} as never,
 		);
-		const stop = tools.AgentStop.renderCall({ id: "agent-1234" }, theme as never, {} as never);
+		const stop = tools.ForkStop.renderCall({ id: "fork-1234" }, theme as never, {} as never);
 		const rendered = (component: { render: (width: number) => string[] }) =>
 			component.render(200).map((line) => line.trimEnd()).join("\n");
 
-		expect(rendered(agent)).toContain("Agent inspect rendering\ncwd: inherited · model: default · thinking: default");
-		expect(rendered(steer)).toContain("Agent Steer agent-1234\ncheck the tests");
-		expect(rendered(stop)).toContain("Agent Stop agent-1234");
+		expect(rendered(fork)).toContain("Fork inspect rendering\ncwd: inherited · model: default · thinking: default");
+		expect(rendered(steer)).toContain("Fork Steer fork-1234\ncheck the tests");
+		expect(rendered(stop)).toContain("Fork Stop fork-1234");
 	});
 
 	it("normalizes null options before starting", async () => {
-		delete process.env.PI_SUBAGENT_CHILD;
-		const { default: piSubagents } = await import("../src/index.ts");
+		delete process.env.PI_FORK_CHILD;
+		const { default: piTinyFork } = await import("../src/index.ts");
 		const pi = {
 			registerTool: vi.fn(),
 			on: vi.fn(),
 			sendMessage: vi.fn(),
 		};
 
-		piSubagents(pi as never);
-		const agentTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Agent")?.[0];
-		await agentTool.execute(
+		piTinyFork(pi as never);
+		const forkTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Fork")?.[0];
+		await forkTool.execute(
 			"call-1",
 			{ task: "check defaults", cwd: null, model: null, thinkingLevel: null },
 			undefined,
@@ -143,24 +143,24 @@ describe("subagent tools", () => {
 		);
 	});
 
-	it("delivers each settled result while sibling agents are still active", async () => {
-		delete process.env.PI_SUBAGENT_CHILD;
-		const { default: piSubagents } = await import("../src/index.ts");
+	it("delivers each settled result while sibling forks are still active", async () => {
+		delete process.env.PI_FORK_CHILD;
+		const { default: piTinyFork } = await import("../src/index.ts");
 		const pi = {
 			registerTool: vi.fn(),
 			on: vi.fn(),
 			sendMessage: vi.fn(),
 		};
 
-		piSubagents(pi as never);
-		const agent: SubagentSnapshot = {
-			id: "agent-1",
-			transcriptPath: "/tmp/agent-1.jsonl",
+		piTinyFork(pi as never);
+		const fork: ForkSnapshot = {
+			id: "fork-1",
+			transcriptPath: "/tmp/fork-1.jsonl",
 			status: "completed",
 			turns: 1,
 			lastOutput: "done",
 		};
-		mocks.managerOptions?.onSettled(agent);
+		mocks.managerOptions?.onSettled(fork);
 
 		expect(pi.sendMessage).toHaveBeenCalledTimes(1);
 		expect(pi.sendMessage.mock.calls[0][0].content).toContain("done");

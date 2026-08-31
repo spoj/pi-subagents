@@ -1,17 +1,17 @@
 {
-  "name": "pi-subagents",
+  "name": "pi-tiny-fork",
   "version": "0.1.0",
-  "description": "Minimal asynchronous forked subagents for Pi",
+  "description": "Tiny asynchronous session forks for Pi",
   "type": "module",
   "keywords": ["pi-package"],
   "license": "MIT",
   "files": ["README.md", "extensions", "src"],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/spoj/pi-subagents.git"
+    "url": "git+https://github.com/spoj/pi-tiny-fork.git"
   },
   "pi": {
-    "extensions": ["./extensions/subagents.ts", "./extensions/replay.ts"]
+    "extensions": ["./extensions/fork.ts", "./extensions/replay.ts"]
   },
   "scripts": {
     "test": "vitest run",

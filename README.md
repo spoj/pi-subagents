@@ -1,14 +1,14 @@
-# pi-subagents
+# pi-tiny-fork
 
-A small Pi extension for asynchronous subagents that always run in a stable session fork.
+A tiny Pi extension for running asynchronous child sessions from a stable fork point.
 
 ## Design
 
 The model-facing surface is intentionally fixed:
 
-- `Agent({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null options inherit their configured defaults.
-- `AgentSteer({ id, prompt })` steers a running child.
-- `AgentStop({ id })` stops a running child.
+- `Fork({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null options inherit their configured defaults.
+- `ForkSteer({ id, prompt })` steers a running child.
+- `ForkStop({ id })` stops a running child.
 
 Completed, failed, and stopped children are terminal. Their RPC process is closed, and further work starts a new child with a new ID and transcript.
 
@@ -25,14 +25,14 @@ There is no model listing, agent selector, wait tool, listing tool, workflow lan
 }
 ```
 
-Subagent model selection follows this order:
+Fork model selection follows this order:
 
-1. Non-null `model` and `thinkingLevel` passed to `Agent`.
-2. `defaultSubagentModel` and `defaultSubagentThinkingLevel` in `~/.pi/agent/settings.json`.
+1. Non-null `model` and `thinkingLevel` passed to `Fork`.
+2. `defaultForkModel` and `defaultForkThinkingLevel` in `~/.pi/agent/settings.json`.
 3. Model and thinking-level entries persisted in the forked session.
 4. Pi's ordinary `defaultModel`, `defaultProvider`, and thinking-level settings.
 
-Each child gets a new session file containing the parent session's path up to the current `Agent` call, then receives a new user message:
+Each child gets a new session file containing the parent session's path up to the current `Fork` call, then receives a new user message:
 
 ```text
 <delegated-task>
@@ -49,12 +49,12 @@ When a child settles, the parent immediately receives its status, ID, transcript
 
 ## Context replay
 
-The package contains a separate `replay` extension. It is package-wide: it runs for ordinary Pi sessions as well as subagent sessions, even when no subagent tool is used. It always uses compatible mode and reads families from the top-level `replayCompatibleModels` setting in `~/.pi/agent/settings.json`:
+The package contains a separate `replay` extension. It is package-wide: it runs for ordinary Pi sessions as well as fork sessions, even when no fork tool is used. It always uses compatible mode and reads families from the top-level `replayCompatibleModels` setting in `~/.pi/agent/settings.json`:
 
 ```json
 {
-  "defaultSubagentModel": "github-copilot/gpt-5.6-luna",
-  "defaultSubagentThinkingLevel": "xhigh",
+  "defaultForkModel": "github-copilot/gpt-5.6-luna",
+  "defaultForkThinkingLevel": "xhigh",
   "replayCompatibleModels": [
     [
       "github-copilot/openai-responses/gpt-5.6-sol",
@@ -71,13 +71,13 @@ Assistant-message provenance is rewritten only within a configured family. Pi re
 From GitHub:
 
 ```bash
-pi install git:github.com/spoj/pi-subagents
+pi install git:github.com/spoj/pi-tiny-fork
 ```
 
 Or run the local checkout temporarily:
 
 ```bash
-pi -e ./extensions/subagents.ts -e ./extensions/replay.ts
+pi -e ./extensions/fork.ts -e ./extensions/replay.ts
 ```
 
 For normal child spawning, install the package (or configure the package in `~/.pi/agent/settings.json`) so child Pi processes load the same extension. Remove any older standalone `context-replay.ts` extension and `context-replay.json` configuration to avoid duplicate behavior.
@@ -90,4 +90,4 @@ npm test
 npm run typecheck
 ```
 
-The package loads two extensions through its manifest: `extensions/subagents.ts` for subagents and `extensions/replay.ts` for package-wide compatible replay. Implementation lives in `src/`.
+The package loads two extensions through its manifest: `extensions/fork.ts` for forks and `extensions/replay.ts` for package-wide compatible replay. Implementation lives in `src/`.

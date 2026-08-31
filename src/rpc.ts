@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { SubagentLaunchOptions } from "./subagent-settings.ts";
+import type { ForkLaunchOptions } from "./fork-settings.ts";
 
 type RpcResponse = {
 	type: "response";
@@ -62,7 +62,7 @@ export class RpcChild {
 	constructor(
 		private readonly cwd: string,
 		private readonly sessionFile: string,
-		private readonly options: SubagentLaunchOptions = {},
+		private readonly options: ForkLaunchOptions = {},
 	) {}
 
 	isAlive(): boolean {
@@ -92,7 +92,7 @@ export class RpcChild {
 		const invocation = piInvocation(args);
 		const child = spawn(invocation.command, invocation.args, {
 			cwd: this.cwd,
-			env: { ...process.env, PI_SUBAGENT_CHILD: "1" },
+			env: { ...process.env, PI_FORK_CHILD: "1" },
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 		this.process = child;
@@ -103,7 +103,7 @@ export class RpcChild {
 			this.stderr += chunk.toString();
 		});
 		child.on("error", (error) => this.rejectPending(error));
-		child.stdin?.on("error", (error) => this.rejectPending(new Error(`Subagent stdin error: ${error.message}`)));
+		child.stdin?.on("error", (error) => this.rejectPending(new Error(`Fork stdin error: ${error.message}`)));
 		child.once("exit", (code, signal) => this.handleExit({ code, signal }));
 
 		const result = await new Promise<{ error?: Error }>((resolve) => {
@@ -121,7 +121,7 @@ export class RpcChild {
 
 		if (result.error) {
 			this.process = undefined;
-			throw new Error(`Could not start subagent: ${result.error.message}`);
+			throw new Error(`Could not start fork: ${result.error.message}`);
 		}
 	}
 
@@ -168,9 +168,9 @@ export class RpcChild {
 
 	private async request(command: Record<string, unknown>): Promise<unknown> {
 		const child = this.process;
-		if (!child || child.exitCode !== null || !child.stdin) throw new Error("Subagent process is not running");
+		if (!child || child.exitCode !== null || !child.stdin) throw new Error("Fork process is not running");
 
-		const id = `pi-subagents-${++this.requestNumber}`;
+		const id = `pi-tiny-fork-${++this.requestNumber}`;
 		let request!: PendingRequest;
 		const pending = new Promise<unknown>((resolve, reject) => {
 			const timeout = setTimeout(() => {
@@ -258,7 +258,7 @@ export class RpcChild {
 		if (this.process === undefined) return;
 		this.process = undefined;
 		const error = new Error(
-			`Subagent process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
+			`Fork process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
 		);
 		this.rejectPending(error);
 		for (const listener of this.exitListeners) listener(exit);

@@ -15,21 +15,21 @@ export function delegatedTask(prompt: string, cwd?: string): string {
 	return `${DELEGATED_TASK_PREFIX}${workingDirectoryNotice}${prompt}${DELEGATED_TASK_SUFFIX}`;
 }
 
-function isAgentToolCall(message: { role: string; content?: unknown }): boolean {
+function isForkToolCall(message: { role: string; content?: unknown }): boolean {
 	if (message.role !== "assistant" || !Array.isArray(message.content)) return false;
 	return message.content.some(
 		(block) =>
 			typeof block === "object" &&
 			block !== null &&
 			(block as { type?: unknown }).type === "toolCall" &&
-			(block as { name?: unknown }).name === "Agent",
+			(block as { name?: unknown }).name === "Fork",
 	);
 }
 
 export function forkPoint(sessionManager: ExtensionContext["sessionManager"]): string | null {
 	const leaf = sessionManager.getLeafEntry();
-	if (!leaf || leaf.type !== "message" || !isAgentToolCall(leaf.message)) {
-		throw new Error("Agent must run from the current assistant tool call");
+	if (!leaf || leaf.type !== "message" || !isForkToolCall(leaf.message)) {
+		throw new Error("Fork must run from the current assistant tool call");
 	}
 	return leaf.parentId;
 }
@@ -53,7 +53,7 @@ export function createForkedSession(
 	name?: string,
 ): string {
 	const parentFile = sessionManager.getSessionFile();
-	if (!parentFile) throw new Error("Agent requires a persisted parent session");
+	if (!parentFile) throw new Error("Fork requires a persisted parent session");
 
 	const targetCwd = cwd === undefined ? undefined : resolve(sessionManager.getCwd(), cwd);
 	const source = targetCwd
