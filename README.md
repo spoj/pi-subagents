@@ -6,7 +6,7 @@ A small Pi extension for asynchronous subagents that always run in a stable sess
 
 The model-facing surface is intentionally fixed:
 
-- `Agent({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`; use `null` unless an option is needed.
+- `Agent({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID and transcript path. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null options inherit their configured defaults.
 - `AgentSteer({ id, prompt })` steers a running child.
 - `AgentResume({ id, prompt })` continues a stopped, failed, or completed child.
 - `AgentStop({ id })` stops a child.

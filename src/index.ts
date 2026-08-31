@@ -11,36 +11,36 @@ import {
 
 const CHILD_PROCESS = process.env.PI_SUBAGENT_CHILD === "1";
 const WIDGET_KEY = "pi-subagents";
-const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Use Agent({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. If you see a user message containing "<delegated-task>" it marks the task for this delegated subagent. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
+const DELEGATION_SYSTEM_PROMPT = `You have access to subagent tools. Use Agent({ task, cwd: null, model: null, thinkingLevel: null }) by default. Set cwd, model, or thinkingLevel to a non-null value only when necessary or requested by the user. If you see a user message containing "<delegated-task>" it marks the task for this delegated subagent. Treat the inherited conversation as context and execute only that delegated task. If you are unsure whether this process is a subagent, inspect the PI_SUBAGENT_CHILD environment variable with the shell; a value of "1" means this is a subagent.`;
 
 const agentTool = Type.Object({
-	task: Type.String({ description: "The task for the forked subagent to execute" }),
+	task: Type.String({ description: "Task sent to the forked subagent" }),
 	cwd: Type.Union([
 		Type.String({
 			description:
-				"Use null unless the user explicitly requests a different working directory or the task requires one; relative paths use the parent working directory",
+				"Working directory for the subagent process. Relative paths resolve from the parent working directory; null inherits it",
 		}),
 		Type.Null(),
 	]),
 	model: Type.Union([
-		Type.String({ description: "Use null unless the user explicitly requests a different model" }),
+		Type.String({ description: "Model identifier for the subagent; null uses the configured default" }),
 		Type.Null(),
 	]),
 	thinkingLevel: Type.Union([
 		StringEnum(THINKING_LEVELS, {
-			description: "Use null unless the user explicitly requests a different thinking level",
+			description: "Thinking level for the subagent; null uses the configured default",
 		}),
 		Type.Null(),
 	]),
 });
 
 const controlTool = Type.Object({
-	id: Type.String({ description: "The subagent ID returned by Agent" }),
-	prompt: Type.String({ description: "The new direction or task" }),
+	id: Type.String({ description: "Identifier of the subagent to control" }),
+	prompt: Type.String({ description: "Task or direction sent to the subagent" }),
 });
 
 const stopTool = Type.Object({
-	id: Type.String({ description: "The subagent ID returned by Agent" }),
+	id: Type.String({ description: "Identifier of the subagent to stop" }),
 });
 
 function childToolError(): never {
@@ -73,7 +73,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 		name: "Agent",
 		label: "Agent",
 		description:
-			"Start an asynchronous subagent. Use Agent({ task, cwd: null, model: null, thinkingLevel: null }) by default; set the nullable options only when necessary. The result includes its ID and transcript path.",
+			"Starts an asynchronous subagent in a fork of the current session and returns its ID and transcript path.",
 		parameters: agentTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
@@ -95,7 +95,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	pi.registerTool({
 		name: "AgentSteer",
 		label: "Agent Steer",
-		description: "Send a steering message to a running subagent.",
+		description: "Sends a steering message to a running subagent.",
 		parameters: controlTool,
 		async execute(_toolCallId, params) {
 			if (CHILD_PROCESS) childToolError();
@@ -107,7 +107,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	pi.registerTool({
 		name: "AgentResume",
 		label: "Agent Resume",
-		description: "Resume a completed, stopped, or failed subagent with a new task.",
+		description: "Resumes a completed, stopped, or failed subagent with a new task.",
 		parameters: controlTool,
 		async execute(_toolCallId, params) {
 			if (CHILD_PROCESS) childToolError();
@@ -119,7 +119,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 	pi.registerTool({
 		name: "AgentStop",
 		label: "Agent Stop",
-		description: "Stop a subagent process.",
+		description: "Stops a subagent process.",
 		parameters: stopTool,
 		async execute(_toolCallId, params) {
 			if (CHILD_PROCESS) childToolError();
