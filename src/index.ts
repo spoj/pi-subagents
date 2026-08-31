@@ -73,7 +73,7 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 		name: "Agent",
 		label: "Agent",
 		description:
-			"Starts an asynchronous subagent in a fork of the current session and returns its ID and transcript path.",
+			"Starts an asynchronous subagent that inherits the caller's context up to the point of delegation, and returns its ID and transcript path.",
 		parameters: agentTool,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (CHILD_PROCESS) childToolError();
