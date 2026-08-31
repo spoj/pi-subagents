@@ -1,4 +1,5 @@
 import { StringEnum } from "@earendil-works/pi-ai";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SubagentManager, type SubagentSnapshot } from "./manager.ts";
@@ -90,6 +91,18 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 				details: agent,
 			};
 		},
+		renderCall(params, theme) {
+			const options = [
+				`cwd: ${params.cwd ?? "inherited"}`,
+				`model: ${params.model ?? "default"}`,
+				`thinking: ${params.thinkingLevel ?? "default"}`,
+			];
+			return new Text(
+				`${theme.fg("toolTitle", theme.bold("Agent"))} ${theme.fg("toolOutput", params.task ?? "")}\n${theme.fg("muted", options.join(" · "))}`,
+				0,
+				0,
+			);
+		},
 	});
 
 	pi.registerTool({
@@ -102,6 +115,13 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 			const agent = await manager.steer(params.id, params.prompt);
 			return { content: [{ type: "text", text: `Steering sent.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }], details: agent };
 		},
+		renderCall(params, theme) {
+			return new Text(
+				`${theme.fg("toolTitle", theme.bold("Agent Steer"))} ${theme.fg("accent", params.id ?? "")}\n${theme.fg("toolOutput", params.prompt ?? "")}`,
+				0,
+				0,
+			);
+		},
 	});
 
 	pi.registerTool({
@@ -113,6 +133,13 @@ function registerTools(pi: ExtensionAPI, manager: SubagentManager): void {
 			if (CHILD_PROCESS) childToolError();
 			const agent = await manager.stop(params.id);
 			return { content: [{ type: "text", text: `Subagent stopped.\n\nID: ${agent.id}\nTranscript: ${agent.transcriptPath}` }], details: agent };
+		},
+		renderCall(params, theme) {
+			return new Text(
+				`${theme.fg("toolTitle", theme.bold("Agent Stop"))} ${theme.fg("accent", params.id ?? "")}`,
+				0,
+				0,
+			);
 		},
 	});
 }

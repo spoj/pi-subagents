@@ -83,6 +83,40 @@ describe("subagent tools", () => {
 		expect(properties.thinkingLevel.anyOf).toEqual(expect.arrayContaining([{ type: "null" }]));
 	});
 
+	it("renders subagent tool arguments", async () => {
+		delete process.env.PI_SUBAGENT_CHILD;
+		const { default: piSubagents } = await import("../src/index.ts");
+		const pi = {
+			registerTool: vi.fn(),
+			on: vi.fn(),
+			sendMessage: vi.fn(),
+		};
+		const theme = {
+			fg: (_color: string, text: string) => text,
+			bold: (text: string) => text,
+		};
+
+		piSubagents(pi as never);
+		const tools = Object.fromEntries(pi.registerTool.mock.calls.map(([tool]) => [tool.name, tool]));
+		const agent = tools.Agent.renderCall(
+			{ task: "inspect rendering", cwd: null, model: null, thinkingLevel: null },
+			theme as never,
+			{} as never,
+		);
+		const steer = tools.AgentSteer.renderCall(
+			{ id: "agent-1234", prompt: "check the tests" },
+			theme as never,
+			{} as never,
+		);
+		const stop = tools.AgentStop.renderCall({ id: "agent-1234" }, theme as never, {} as never);
+		const rendered = (component: { render: (width: number) => string[] }) =>
+			component.render(200).map((line) => line.trimEnd()).join("\n");
+
+		expect(rendered(agent)).toContain("Agent inspect rendering\ncwd: inherited · model: default · thinking: default");
+		expect(rendered(steer)).toContain("Agent Steer agent-1234\ncheck the tests");
+		expect(rendered(stop)).toContain("Agent Stop agent-1234");
+	});
+
 	it("normalizes null options before starting", async () => {
 		delete process.env.PI_SUBAGENT_CHILD;
 		const { default: piSubagents } = await import("../src/index.ts");
