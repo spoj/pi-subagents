@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const DELEGATED_TASK_PREFIX = `<delegated-task>
-This is fork-point. Before: reference history only, parent aware. Execute only the task below. After fork-point: your private context, unknown to parent unless you report. Your final message is report to the parent agent. Use dense precise langauge for reporting back to parent. Must maximize new information, minimize words used. Avoid repeating pre-fork context that's already clear to parent.
+This is fork-point. Before: reference history only, parent aware. Execute only the task below. After: private context, parent know only final report. Final report: internal handoff, dense langauge, lead with conclusions, findings only. Skip pre-fork facts. Maximize new information per word.
 
 Task:
 `;

@@ -10,9 +10,9 @@ import {
 	type ForkThinkingLevel,
 } from "./fork-settings.ts";
 
-const CHILD_PROCESS = process.env.PI_FORK_CHILD === "1";
+const CHILD_PROCESS = prkcess.env.PI_FORK_CHILD === "1";
 const WIDGET_KEY = "pi-tiny-fork";
-const DELEGATION_SYSTEM_PROMPT = `You have access to fork tools. Use Fork({ task, cwd: null, model: null, thinkingLevel: null }) to fork context into a subagent. Use non-null value for cwd, model, thinkingLevel only when it is absolutely clear defaults won't do. Use ForkSteer to add context or change direction to a running fork. This can be useful to add information that became known to you after initial fork point. If you see a user message containing "<delegated-task>" it means you are the forked subagent, and that messsage marks the fork point. Before fork-point: reference only, parent aware. After fork-point: your own context unless reported back. Could check PI_FORK_CHILD=1 to sure test you are a fork.`;
+const DELEGATION_SYSTEM_PROMPT = `Fork tools: ``Fork({task, cwd:null, model:null, thinkingLevel:null})`` starts a subagent with the full conversation context through the ``Fork()`` call, plus task. Do not repeat inherited context. Keep defaults unless an override is clearly necessary. Use ``ForkSteer`` to send new context or direction. Having ``<delegated-task>`` identifies a forked child; follow that block. If needed, verify with PI_FORK_CHILD=1.`;
 
 const forkTool = Type.Object({
 	task: Type.String({ description: "Task sent to the forked child" }),
