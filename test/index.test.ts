@@ -125,8 +125,8 @@ describe("fork tools", () => {
 			component.render(200).map((line) => line.trimEnd()).join("\n");
 
 		expect(rendered(fork)).toContain("Fork inspect rendering\ncwd: inherited · model: default · thinking: default");
-		expect(rendered(steer)).toContain("Fork Steer fork-1234\ncheck the tests");
-		expect(rendered(stop)).toContain("Fork Stop fork-1234");
+		expect(rendered(steer)).toContain("ForkSteer fork-1234\ncheck the tests");
+		expect(rendered(stop)).toContain("ForkStop fork-1234");
 	});
 
 	it("normalizes null options before starting", async () => {
