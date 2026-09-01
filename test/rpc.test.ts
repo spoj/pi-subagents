@@ -3,6 +3,7 @@ import { RpcChild, type ChildExit } from "../src/rpc.ts";
 
 type RpcChildInternals = {
 	process: object | undefined;
+	pid: number;
 	consumeStdout: (chunk: Buffer) => void;
 	flushStdout: () => void;
 	handleExit: (exit: ChildExit) => void;
@@ -21,6 +22,17 @@ describe("RPC child", () => {
 		internals.flushStdout();
 
 		expect(lines).toEqual(["�"]);
+	});
+
+	it("retains the spawned process ID after exit", () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+		internals.pid = 1234;
+		internals.process = { exitCode: null };
+
+		internals.handleExit({ code: 0, signal: null });
+
+		expect(child.getPid()).toBe(1234);
 	});
 
 	it("stops tracking a child when it exits before its stdio closes", () => {

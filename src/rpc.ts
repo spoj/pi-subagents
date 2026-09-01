@@ -51,6 +51,7 @@ function piInvocation(args: string[]): { command: string; args: string[] } {
 
 export class RpcChild {
 	private process: ChildProcess | undefined;
+	private pid!: number;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<ChildEventListener>();
 	private readonly exitListeners = new Set<ChildExitListener>();
@@ -67,6 +68,10 @@ export class RpcChild {
 
 	isAlive(): boolean {
 		return this.process !== undefined && this.process.exitCode === null;
+	}
+
+	getPid(): number {
+		return this.pid;
 	}
 
 	getStderr(): string {
@@ -109,6 +114,7 @@ export class RpcChild {
 		const result = await new Promise<{ error?: Error }>((resolve) => {
 			const onSpawn = () => {
 				child.off("error", onError);
+				this.pid = child.pid!;
 				resolve({});
 			};
 			const onError = (error: Error) => {

@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => {
 			return this.alive;
 		}
 
+		getPid(): number {
+			return 1234;
+		}
+
 		getStderr(): string {
 			return "";
 		}
@@ -165,7 +169,10 @@ describe("fork manager", () => {
 		});
 		child.emit({ type: "agent_settled" });
 
-		expect(started.status).toBe("running");
+		expect(started).toMatchObject({
+			status: "running",
+			process: { pid: 1234, platform: process.platform },
+		});
 		expect(manager.list()[0]).toMatchObject({ status: "completed", turns: 1, lastOutput: "done" });
 		expect(child.stopCalls).toBe(1);
 		expect(settled).toHaveLength(1);

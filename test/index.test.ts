@@ -27,7 +27,13 @@ const mocks = vi.hoisted(() => {
 			cwd?: string,
 		) {
 			startCalls.push({ ctx, prompt, launchOptions, cwd });
-			return { id: "fork-1", transcriptPath: "/tmp/fork-1.jsonl", status: "starting", turns: 0 };
+			return {
+				id: "fork-1",
+				transcriptPath: "/tmp/fork-1.jsonl",
+				process: { pid: 1234, platform: process.platform },
+				status: "starting",
+				turns: 0,
+			};
 		}
 	}
 
@@ -141,7 +147,7 @@ describe("fork tools", () => {
 
 		piTinyFork(pi as never);
 		const forkTool = pi.registerTool.mock.calls.find(([tool]) => tool.name === "Fork")?.[0];
-		await forkTool.execute(
+		const result = await forkTool.execute(
 			"call-1",
 			{ task: "check defaults", cwd: null, model: null, thinkingLevel: null },
 			undefined,
@@ -149,6 +155,7 @@ describe("fork tools", () => {
 			{} as never,
 		);
 
+		expect(result.content[0].text).toContain(`Process: {"pid":1234,"platform":"${process.platform}"}`);
 		expect(mocks.startCalls).toHaveLength(1);
 		expect(mocks.startCalls[0]).toMatchObject({ prompt: "check defaults", cwd: undefined });
 		expect(mocks.startCalls[0].launchOptions).toEqual({ model: "provider/default", thinkingLevel: "high" });
