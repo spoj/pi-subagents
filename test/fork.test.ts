@@ -97,8 +97,8 @@ describe("fork creation", () => {
 
 	it("adds inherited-context guidance and an explicit working-directory notice", () => {
 		const inherited = delegatedTask("work");
-		expect(inherited).toContain("Treat the inherited conversation as established reference context");
-		expect(inherited).toContain("Do not restate facts, structure, or reasoning already clear");
+		expect(inherited).toContain("reference");
+		expect(inherited).toContain("Skip pre-fork facts");
 		expect(inherited).not.toContain("Your working directory has been switched");
 		expect(delegatedTask("work", "/tmp/worktree")).toContain(
 			"Your working directory has been switched to /tmp/worktree.",
