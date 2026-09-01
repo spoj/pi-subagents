@@ -6,11 +6,11 @@ A tiny Pi extension for running asynchronous child sessions from a stable fork p
 
 The model-facing surface is intentionally fixed:
 
-- `Fork({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID, transcript path, and process metadata (`pid` and `platform`). The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null `model` and `thinkingLevel` use their dedicated `defaultFork*` settings; the fork is refused when either value is unavailable.
+- `Fork({ task, cwd, model, thinkingLevel })` starts a child and returns immediately with its ID, transcript path, and PID. The fields are `task: string`, `cwd: string | null`, `model: string | null`, and `thinkingLevel: ThinkingLevel | null`. Null `model` and `thinkingLevel` use their dedicated `defaultFork*` settings; the fork is refused when either value is unavailable.
 - `ForkSteer({ id, prompt })` steers a running child.
 - `ForkStop({ id })` stops a running child.
 
-Completed, failed, and stopped children are terminal. Their RPC process is closed, and further work starts a new child with a new ID and transcript. The PID supports best-effort platform-specific liveness checks, such as `kill -0 PID` on Unix; lifecycle notifications remain authoritative because operating systems can reuse PIDs.
+Completed, failed, and stopped children are terminal. Their RPC process is closed, and further work starts a new child with a new ID and transcript. The PID supports best-effort liveness checks, such as `kill -0 PID` on Unix; lifecycle notifications remain authoritative because operating systems can reuse PIDs.
 
 There is no model listing, agent selector, wait tool, listing tool, workflow language, or model-specific transcript logic. The child is a separate `pi --mode rpc` process using the normal Pi settings and tools.
 

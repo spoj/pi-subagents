@@ -61,7 +61,7 @@ function resultText(fork: ForkSnapshot): string {
 		"",
 		`ID: ${fork.id}`,
 		`Transcript: ${fork.transcriptPath}`,
-		...(fork.process ? [`Process: ${JSON.stringify(fork.process)}`] : []),
+		...(fork.pid ? [`PID: ${fork.pid}`] : []),
 		fork.error ? `Error: ${fork.error}` : output ? `Result:\n${output}` : "Result: (no final response; inspect the transcript)",
 	].join("\n");
 }
@@ -100,7 +100,7 @@ function registerTools(pi: ExtensionAPI, manager: ForkManager): void {
 			return {
 				content: [{
 					type: "text",
-					text: `Fork started.\n\nID: ${fork.id}\nTranscript: ${fork.transcriptPath}\nProcess: ${JSON.stringify(fork.process)}`,
+					text: `Fork started.\n\nID: ${fork.id}\nTranscript: ${fork.transcriptPath}\nPID: ${fork.pid}`,
 				}],
 				details: fork,
 			};

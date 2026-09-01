@@ -169,10 +169,7 @@ describe("fork manager", () => {
 		});
 		child.emit({ type: "agent_settled" });
 
-		expect(started).toMatchObject({
-			status: "running",
-			process: { pid: 1234, platform: process.platform },
-		});
+		expect(started).toMatchObject({ status: "running", pid: 1234 });
 		expect(manager.list()[0]).toMatchObject({ status: "completed", turns: 1, lastOutput: "done" });
 		expect(child.stopCalls).toBe(1);
 		expect(settled).toHaveLength(1);

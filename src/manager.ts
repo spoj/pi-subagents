@@ -7,15 +7,10 @@ import type { ForkLaunchOptions } from "./fork-settings.ts";
 
 export type ForkStatus = "starting" | "running" | "completed" | "failed" | "stopped";
 
-export type ForkProcessInfo = {
-	pid: number;
-	platform: NodeJS.Platform;
-};
-
 export type ForkSnapshot = {
 	id: string;
 	transcriptPath: string;
-	process?: ForkProcessInfo;
+	pid?: number;
 	status: ForkStatus;
 	activity?: string;
 	turns: number;
@@ -191,10 +186,7 @@ export class ForkManager {
 		child.onEvent(this.eventListener(fork));
 		child.onExit((exit) => this.handleExit(fork, child, exit));
 		await child.start();
-		fork.process = {
-			pid: child.getPid(),
-			platform: process.platform,
-		};
+		fork.pid = child.getPid();
 	}
 
 	private eventListener(fork: ForkRecord): ChildEventListener {
@@ -279,7 +271,7 @@ export class ForkManager {
 		return {
 			id: fork.id,
 			transcriptPath: fork.transcriptPath,
-			...(fork.process ? { process: fork.process } : {}),
+			...(fork.pid ? { pid: fork.pid } : {}),
 			status: fork.status,
 			...(fork.activity ? { activity: fork.activity } : {}),
 			turns: fork.turns,

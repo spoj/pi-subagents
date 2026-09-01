@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => {
 			return {
 				id: "fork-1",
 				transcriptPath: "/tmp/fork-1.jsonl",
-				process: { pid: 1234, platform: process.platform },
+				pid: 1234,
 				status: "starting",
 				turns: 0,
 			};
@@ -155,7 +155,7 @@ describe("fork tools", () => {
 			{} as never,
 		);
 
-		expect(result.content[0].text).toContain(`Process: {"pid":1234,"platform":"${process.platform}"}`);
+		expect(result.content[0].text).toContain("PID: 1234");
 		expect(mocks.startCalls).toHaveLength(1);
 		expect(mocks.startCalls[0]).toMatchObject({ prompt: "check defaults", cwd: undefined });
 		expect(mocks.startCalls[0].launchOptions).toEqual({ model: "provider/default", thinkingLevel: "high" });
