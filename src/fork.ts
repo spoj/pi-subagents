@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { SessionManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const DELEGATED_TASK_PREFIX = `<delegated-task>
-This user message marks the fork point. Treat the inherited conversation as established reference context, not as a live conversation to continue. Execute only the task below. Do not restate facts, structure, or reasoning already clear from the inherited conversation. Focus on new findings, corrections, implications, and the requested output. If the task requires a self-contained result, include only the minimum inherited background needed.
+This is fork-point. Before: reference history only, parent aware. Execute only the task below. After fork-point: your private context, unknown to parent unless you report. Your final message is report to the parent agent. Use dense precise langauge for reporting back to parent. Must maximize new information, minimize words used. Avoid repeating pre-fork context that's already clear to parent.
 
 Task:
 `;

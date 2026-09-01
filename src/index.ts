@@ -12,7 +12,7 @@ import {
 
 const CHILD_PROCESS = process.env.PI_FORK_CHILD === "1";
 const WIDGET_KEY = "pi-tiny-fork";
-const DELEGATION_SYSTEM_PROMPT = `You have access to fork tools. Use Fork({ task, cwd: null, model: null, thinkingLevel: null }) by default. Use non-null value for cwd, model, thinkingLevel only when necessary or requested by the user. Use ForkSteer for relevant context or direction that arises after the initial delegation point. If you see a user message containing "<delegated-task>" it marks the task for this delegated fork. Treat the inherited conversation as context and execute only that delegated task. If you are unsure whether this process is a fork, inspect the PI_FORK_CHILD environment variable with the shell; a value of "1" means this is a fork.`;
+const DELEGATION_SYSTEM_PROMPT = `You have access to fork tools. Use Fork({ task, cwd: null, model: null, thinkingLevel: null }) to fork context into a subagent. Use non-null value for cwd, model, thinkingLevel only when it is absolutely clear defaults won't do. Use ForkSteer to add context or change direction to a running fork. This can be useful to add information that became known to you after initial fork point. If you see a user message containing "<delegated-task>" it means you are the forked subagent, and that messsage marks the fork point. Before fork-point: reference only, parent aware. After fork-point: your own context unless reported back. Could check PI_FORK_CHILD=1 to sure test you are a fork.`;
 
 const forkTool = Type.Object({
 	task: Type.String({ description: "Task sent to the forked child" }),
