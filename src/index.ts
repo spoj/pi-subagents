@@ -127,7 +127,7 @@ function registerTools(pi: ExtensionAPI, manager: ForkManager): void {
 		},
 		renderCall(params, theme) {
 			return new Text(
-				`${theme.fg("toolTitle", theme.bold("ForkSteer"))} ${theme.fg("accent", params.id ?? "")}\n${theme.fg("toolOutput", params.prompt ?? "")}`,
+				`${theme.fg("toolTitle", theme.bold("Fork Steer"))} ${theme.fg("accent", params.id ?? "")}\n${theme.fg("toolOutput", params.prompt ?? "")}`,
 				0,
 				0,
 			);
@@ -146,7 +146,7 @@ function registerTools(pi: ExtensionAPI, manager: ForkManager): void {
 		},
 		renderCall(params, theme) {
 			return new Text(
-				`${theme.fg("toolTitle", theme.bold("ForkStop"))} ${theme.fg("accent", params.id ?? "")}`,
+				`${theme.fg("toolTitle", theme.bold("Fork Stop"))} ${theme.fg("accent", params.id ?? "")}`,
 				0,
 				0,
 			);
