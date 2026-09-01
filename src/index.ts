@@ -10,7 +10,7 @@ import {
 	type ForkThinkingLevel,
 } from "./fork-settings.ts";
 
-const CHILD_PROCESS = prkcess.env.PI_FORK_CHILD === "1";
+const CHILD_PROCESS = process.env.PI_FORK_CHILD === "1";
 const WIDGET_KEY = "pi-tiny-fork";
 const DELEGATION_SYSTEM_PROMPT = `Fork tools: ``Fork({task, cwd:null, model:null, thinkingLevel:null})`` starts a subagent with the full conversation context through the ``Fork()`` call, plus task. Do not repeat inherited context. Keep defaults unless an override is clearly necessary. Use ``ForkSteer`` to send new context or direction. Having ``<delegated-task>`` identifies a forked child; follow that block. If needed, verify with PI_FORK_CHILD=1.`;
 
