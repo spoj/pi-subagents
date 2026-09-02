@@ -71,6 +71,22 @@ describe("RPC child", () => {
 		expect(child.isAlive()).toBe(false);
 	});
 
+	it("destroys all streams when stopping after the child exits", async () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+		const stdin = { destroy: vi.fn() };
+		const stdout = { destroy: vi.fn() };
+		const stderr = { destroy: vi.fn() };
+		internals.process = { exitCode: 1, signalCode: null, stdin, stdout, stderr } as never;
+
+		internals.handleExit({ code: 1, signal: null });
+		await child.stop();
+
+		expect(stdin.destroy).toHaveBeenCalledOnce();
+		expect(stdout.destroy).toHaveBeenCalledOnce();
+		expect(stderr.destroy).toHaveBeenCalledOnce();
+	});
+
 	it("ignores events after the child exits", () => {
 		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
 		const internals = child as unknown as RpcChildInternals;
@@ -141,7 +157,7 @@ describe("RPC child", () => {
 			child = new RpcChild(directory, join(directory, "session.jsonl"));
 			const exited = new Promise<void>((resolve) => child!.onExit(() => resolve()));
 			await child.start();
-			while (!existsSync(ready)) await new Promise((resolve) => setTimeout(resolve, 10));
+			await expect.poll(() => existsSync(ready), { timeout: 5_000 }).toBe(true);
 			await exited;
 			await child.stop();
 			await new Promise((resolve) => setTimeout(resolve, 1800));

@@ -54,6 +54,7 @@ function piInvocation(args: string[]): { command: string; args: string[] } {
 export class RpcChild {
 	private process: ChildProcess | undefined;
 	private pid?: number;
+	private exited = false;
 	private stopPromise?: Promise<void>;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<ChildEventListener>();
@@ -70,7 +71,7 @@ export class RpcChild {
 	) {}
 
 	isAlive(): boolean {
-		return this.process !== undefined && this.process.exitCode === null;
+		return this.process !== undefined && !this.exited && this.process.exitCode === null;
 	}
 
 	getPid(): number {
@@ -106,6 +107,7 @@ export class RpcChild {
 			windowsHide: true,
 		});
 		this.process = child;
+		this.exited = false;
 
 		child.stdout?.on("data", (chunk: Buffer | string) => this.consumeStdout(chunk));
 		child.stdout?.once("end", () => this.flushStdout());
@@ -219,7 +221,7 @@ export class RpcChild {
 	}
 
 	private consumeStdout(chunk: Buffer | string): void {
-		if (!this.process) return;
+		if (!this.process || this.exited) return;
 		this.buffer += this.decoder.write(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
 		while (true) {
 			const newline = this.buffer.indexOf("\n");
@@ -232,7 +234,7 @@ export class RpcChild {
 	}
 
 	private processLine(line: string): void {
-		if (!this.process || !line.trim()) return;
+		if (!this.process || this.exited || !line.trim()) return;
 		let value: Record<string, unknown>;
 		try {
 			value = JSON.parse(line) as Record<string, unknown>;
@@ -281,8 +283,8 @@ export class RpcChild {
 	}
 
 	private handleExit(exit: ChildExit): void {
-		if (this.process === undefined) return;
-		this.process = undefined;
+		if (this.process === undefined || this.exited) return;
+		this.exited = true;
 		const error = new Error(
 			`Fork process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
 		);
