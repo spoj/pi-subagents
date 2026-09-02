@@ -137,9 +137,10 @@ export class ForkManager {
 				throw new Error(`${id} is not running`);
 			}
 			fork.stopRequested = true;
-			if (fork.child?.isAlive()) {
-				void fork.child.abort().catch(() => undefined);
-				await fork.child.stop();
+			if (fork.child?.isAlive()) void fork.child.abort().catch(() => undefined);
+			if (fork.child) {
+				fork.cleanup ??= fork.child.stop();
+				await fork.cleanup;
 			}
 			fork.status = "stopped";
 			fork.activity = undefined;
@@ -154,7 +155,7 @@ export class ForkManager {
 		await Promise.all([
 			...Array.from(this.forks.values()).map(async (fork) => {
 				fork.stopRequested = true;
-				fork.cleanup ??= fork.child?.isAlive() ? fork.child.stop() : Promise.resolve();
+				fork.cleanup ??= fork.child ? fork.child.stop() : Promise.resolve();
 				await fork.cleanup;
 			}),
 			...Array.from(this.forks.values(), (fork) => fork.operation),
@@ -241,7 +242,7 @@ export class ForkManager {
 		if (fork.settled) return;
 		fork.settled = true;
 		fork.stopRequested = true;
-		if (fork.child?.isAlive()) fork.cleanup = fork.child.stop().catch(() => undefined);
+		if (fork.child && !fork.cleanup) fork.cleanup = fork.child.stop().catch(() => undefined);
 		this.options.onSettled(this.snapshot(fork));
 	}
 

@@ -1,7 +1,7 @@
 import { StringDecoder } from "node:string_decoder";
 import { existsSync } from "node:fs";
-import { basename } from "node:path";
-import { spawn, type ChildProcess } from "node:child_process";
+import { basename, join } from "node:path";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { ForkLaunchOptions } from "./fork-settings.ts";
 
@@ -27,6 +27,7 @@ type PendingRequest = {
 };
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const KILL_GRACE_MS = 1_000;
 
 export type ChildExit = {
 	code: number | null;
@@ -51,7 +52,8 @@ function piInvocation(args: string[]): { command: string; args: string[] } {
 
 export class RpcChild {
 	private process: ChildProcess | undefined;
-	private pid!: number;
+	private pid?: number;
+	private stopPromise?: Promise<void>;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<ChildEventListener>();
 	private readonly exitListeners = new Set<ChildExitListener>();
@@ -71,7 +73,7 @@ export class RpcChild {
 	}
 
 	getPid(): number {
-		return this.pid;
+		return this.pid!;
 	}
 
 	getStderr(): string {
@@ -99,6 +101,8 @@ export class RpcChild {
 			cwd: this.cwd,
 			env: { ...process.env, PI_FORK_CHILD: "1" },
 			stdio: ["pipe", "pipe", "pipe"],
+			detached: process.platform !== "win32",
+			windowsHide: true,
 		});
 		this.process = child;
 
@@ -131,33 +135,41 @@ export class RpcChild {
 		}
 	}
 
-	async stop(): Promise<void> {
+	stop(): Promise<void> {
+		if (this.stopPromise) return this.stopPromise;
 		const child = this.process;
-		if (!child) return;
+		if (!child && !this.pid) return Promise.resolve();
 
-		await new Promise<void>((resolve) => {
-			if (child.exitCode !== null) {
+		this.stopPromise = new Promise<void>((resolve) => {
+			if (process.platform === "win32") {
+				terminateProcessTree(this.pid, child, "SIGTERM");
 				resolve();
 				return;
 			}
 
-			let forceKillTimeout: NodeJS.Timeout;
-			let finishTimeout: NodeJS.Timeout | undefined;
-			const finish = () => {
-				clearTimeout(forceKillTimeout);
-				if (finishTimeout) clearTimeout(finishTimeout);
+			if (processGone(this.pid, child)) {
 				resolve();
-			};
-			child.once("exit", finish);
-			forceKillTimeout = setTimeout(() => {
-				if (child.exitCode === null) child.kill("SIGKILL");
-				finishTimeout = setTimeout(() => {
+				return;
+			}
+
+			const startedAt = Date.now();
+			const waitForExit = () => {
+				if (processGone(this.pid, child)) {
+					resolve();
+					return;
+				}
+				if (Date.now() - startedAt >= KILL_GRACE_MS) {
+					terminateProcessTree(this.pid, child, "SIGKILL");
 					if (this.process === child) this.handleExit({ code: null, signal: "SIGKILL" });
-					finish();
-				}, 1000);
-			}, 1000);
-			child.kill("SIGTERM");
+					resolve();
+					return;
+				}
+				setTimeout(waitForExit, 25);
+			};
+			terminateProcessTree(this.pid, child, "SIGTERM");
+			waitForExit();
 		});
+		return this.stopPromise;
 	}
 
 	async prompt(message: string): Promise<void> {
@@ -276,5 +288,42 @@ export class RpcChild {
 			pending.reject(error);
 		}
 		this.pending.clear();
+	}
+}
+
+function processGone(pid: number | undefined, child: ChildProcess | undefined): boolean {
+	if (!pid) return !child || child.exitCode !== null || child.signalCode != null;
+	try {
+		process.kill(-pid, 0);
+		return false;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code !== "EPERM";
+	}
+}
+
+function terminateProcessTree(pid: number | undefined, child: ChildProcess | undefined, signal: NodeJS.Signals): void {
+	if (!pid) {
+		child?.kill(signal);
+		return;
+	}
+
+	if (process.platform === "win32") {
+		try {
+			execFileSync(
+				join(process.env.SystemRoot ?? "C:\\Windows", "System32", "taskkill.exe"),
+				["/pid", String(pid), "/t", "/f"],
+				{ stdio: "ignore" },
+			);
+			return;
+		} catch {
+			child?.kill(signal);
+			return;
+		}
+	}
+
+	try {
+		process.kill(-pid, signal);
+	} catch {
+		child?.kill(signal);
 	}
 }

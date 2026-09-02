@@ -234,6 +234,7 @@ describe("fork manager", () => {
 			status: "failed",
 			error: "Process exited with 1",
 		});
+		expect(mocks.children[0].stopCalls).toBe(1);
 		expect(settled).toHaveLength(1);
 	});
 

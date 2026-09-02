@@ -58,6 +58,36 @@ describe("RPC child", () => {
 		expect(events).toEqual([]);
 	});
 
+	it("stops the process group after the leader has exited", async () => {
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(((pid: number, signal?: NodeJS.Signals | number) => {
+			if (signal === 0) {
+				const error = new Error("group still exists") as NodeJS.ErrnoException;
+				error.code = "EPERM";
+				throw error;
+			}
+			return true;
+		}) as never);
+		try {
+			const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+			const internals = child as unknown as RpcChildInternals;
+			internals.pid = 1234;
+			internals.process = undefined;
+
+			const stopping = child.stop();
+			await vi.advanceTimersByTimeAsync(1000);
+			await stopping;
+
+			expect(kill.mock.calls.map(([pid, signal]) => [pid, signal]).filter(([, signal]) => signal !== 0)).toEqual([
+				[-1234, "SIGTERM"],
+				[-1234, "SIGKILL"],
+			]);
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
 	it("resolves stop after a forced kill even if stdio never closes", async () => {
 		vi.useFakeTimers();
 		try {

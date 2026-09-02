@@ -10,7 +10,7 @@ The model-facing surface is intentionally fixed:
 - `ForkSteer({ id, prompt })` steers a running child.
 - `ForkStop({ id })` stops a running child.
 
-Completed, failed, and stopped children are terminal. Their RPC process is closed, and further work starts a new child with a new ID and transcript. The PID supports best-effort liveness checks, such as `kill -0 PID` on Unix; lifecycle notifications remain authoritative because operating systems can reuse PIDs.
+Completed, failed, and stopped children are terminal. Their RPC process is closed, and further work starts a new child with a new ID and transcript. The PID supports best-effort liveness checks, such as `kill -0 PID` on Unix; lifecycle notifications remain authoritative because operating systems can reuse PIDs. Fork processes run in their own process group, so stopping, settling, or shutting down also cleans up descendants.
 
 There is no model listing, agent selector, wait tool, listing tool, workflow language, or model-specific transcript logic. The child is a separate `pi --mode rpc` process using the normal Pi settings and tools.
 
