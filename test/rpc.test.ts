@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it, vi } from "vitest";
 import { RpcChild, type ChildExit } from "../src/rpc.ts";
 
@@ -88,23 +91,68 @@ describe("RPC child", () => {
 		}
 	});
 
-	it("resolves stop after a forced kill even if stdio never closes", async () => {
+	it.skipIf(process.platform === "win32")("kills an ignored-SIGTERM descendant after the leader exits", async () => {
+		const directory = mkdtempSync(join(tmpdir(), "pi-tiny-fork-"));
+		const marker = join(directory, "leaked");
+		const ready = join(directory, "ready");
+		const script = join(directory, "rpc-child.js");
+		const descendant = [
+			"const fs = require('node:fs');",
+			"process.on('SIGTERM', () => {});",
+			`fs.writeFileSync(${JSON.stringify(ready)}, 'ready');`,
+			`setTimeout(() => fs.writeFileSync(${JSON.stringify(marker)}, 'leaked'), 1500);`,
+		].join(" ");
+		writeFileSync(
+			script,
+			[
+				"const { spawn } = require('node:child_process');",
+			`spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], { stdio: 'ignore' }).unref();`,
+			"setTimeout(() => process.exit(0), 100);",
+			].join(" "),
+		);
+
+		const originalScript = process.argv[1];
+		let child: RpcChild | undefined;
+		try {
+			process.argv[1] = script;
+			child = new RpcChild(directory, join(directory, "session.jsonl"));
+			const exited = new Promise<void>((resolve) => child!.onExit(() => resolve()));
+			await child.start();
+			while (!existsSync(ready)) await new Promise((resolve) => setTimeout(resolve, 10));
+			await exited;
+			await child.stop();
+			await new Promise((resolve) => setTimeout(resolve, 1800));
+			expect(existsSync(marker)).toBe(false);
+		} finally {
+			await child?.stop();
+			process.argv[1] = originalScript;
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("resolves one concurrent stop after a forced kill even if stdio never closes", async () => {
 		vi.useFakeTimers();
 		try {
 			const child = new RpcChild("/tmp", "/tmp/session.jsonl");
 			const internals = child as unknown as RpcChildInternals;
 			const signals: NodeJS.Signals[] = [];
+			const stdout = { destroy: vi.fn() };
+			const stderr = { destroy: vi.fn() };
 			internals.process = {
 				exitCode: null,
+				stdout,
+				stderr,
 				once: () => undefined,
 				kill: (signal: NodeJS.Signals) => signals.push(signal),
 			} as never;
 
 			const stopping = child.stop();
+			expect(child.stop()).toBe(stopping);
 			await vi.advanceTimersByTimeAsync(1000);
 			expect(signals).toEqual(["SIGTERM", "SIGKILL"]);
-			await vi.advanceTimersByTimeAsync(1000);
 			await stopping;
+			expect(stdout.destroy).toHaveBeenCalledOnce();
+			expect(stderr.destroy).toHaveBeenCalledOnce();
 			expect(child.isAlive()).toBe(false);
 		} finally {
 			vi.useRealTimers();

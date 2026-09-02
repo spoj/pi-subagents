@@ -28,6 +28,7 @@ type PendingRequest = {
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const KILL_GRACE_MS = 1_000;
+const MAX_STDERR_BYTES = 64 * 1024;
 
 export type ChildExit = {
 	code: number | null;
@@ -109,7 +110,14 @@ export class RpcChild {
 		child.stdout?.on("data", (chunk: Buffer | string) => this.consumeStdout(chunk));
 		child.stdout?.once("end", () => this.flushStdout());
 		child.stderr?.on("data", (chunk: Buffer | string) => {
-			this.stderr += chunk.toString();
+			const stderr = Buffer.concat([Buffer.from(this.stderr), Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+			if (stderr.length <= MAX_STDERR_BYTES) {
+				this.stderr = stderr.toString();
+				return;
+			}
+			let start = stderr.length - MAX_STDERR_BYTES;
+			while (start < stderr.length && (stderr[start] & 0xc0) === 0x80) start++;
+			this.stderr = stderr.subarray(start).toString();
 		});
 		child.on("error", (error) => this.rejectPending(error));
 		child.stdin?.on("error", (error) => this.rejectPending(new Error(`Fork stdin error: ${error.message}`)));
@@ -141,6 +149,8 @@ export class RpcChild {
 		if (!child && !this.pid) return Promise.resolve();
 
 		this.stopPromise = new Promise<void>((resolve) => {
+			child?.stdout?.destroy();
+			child?.stderr?.destroy();
 			if (process.platform === "win32") {
 				terminateProcessTree(this.pid, child, "SIGTERM");
 				resolve();
