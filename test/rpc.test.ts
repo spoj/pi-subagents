@@ -11,6 +11,7 @@ type RpcChildInternals = {
 	flushStdout: () => void;
 	handleExit: (exit: ChildExit) => void;
 	processLine: (line: string) => void;
+	appendStderr: (chunk: Buffer | string) => void;
 };
 
 describe("RPC child", () => {
@@ -25,6 +26,17 @@ describe("RPC child", () => {
 		internals.flushStdout();
 
 		expect(lines).toEqual(["�"]);
+	});
+
+	it("bounds stderr while retaining its newest text", () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+
+		internals.appendStderr(Buffer.alloc(64 * 1024, "x"));
+		internals.appendStderr("newest:終");
+
+		expect(Buffer.byteLength(child.getStderr())).toBeLessThanOrEqual(64 * 1024);
+		expect(child.getStderr()).toMatch(/newest:終$/);
 	});
 
 	it("retains the spawned process ID after exit", () => {

@@ -50,7 +50,10 @@ const mocks = vi.hoisted(() => {
 
 		async prompt(message: string): Promise<void> {
 			this.prompts.push(message);
-			if (promptError) throw promptError;
+			if (promptError) {
+				if (exitBeforePromptError) this.exit({ code: 0, signal: null });
+				throw promptError;
+			}
 		}
 
 		async steer(message: string): Promise<void> {
@@ -68,6 +71,7 @@ const mocks = vi.hoisted(() => {
 		async stop(): Promise<void> {
 			this.stopCalls++;
 			this.alive = false;
+			if (stopGate) await stopGate;
 		}
 
 		emit(event: unknown): void {
@@ -85,6 +89,8 @@ const mocks = vi.hoisted(() => {
 	let steerGate: Promise<void> | undefined;
 	let startError: Error | undefined;
 	let promptError: Error | undefined;
+	let exitBeforePromptError = false;
+	let stopGate: Promise<void> | undefined;
 	return {
 		children,
 		FakeRpcChild,
@@ -112,6 +118,18 @@ const mocks = vi.hoisted(() => {
 		set promptError(value: Error | undefined) {
 			promptError = value;
 		},
+		get exitBeforePromptError() {
+			return exitBeforePromptError;
+		},
+		set exitBeforePromptError(value: boolean) {
+			exitBeforePromptError = value;
+		},
+		get stopGate() {
+			return stopGate;
+		},
+		set stopGate(value: Promise<void> | undefined) {
+			stopGate = value;
+		},
 	};
 });
 
@@ -137,6 +155,8 @@ beforeEach(() => {
 	mocks.steerGate = undefined;
 	mocks.startError = undefined;
 	mocks.promptError = undefined;
+	mocks.exitBeforePromptError = false;
+	mocks.stopGate = undefined;
 });
 
 describe("fork manager", () => {
@@ -236,6 +256,29 @@ describe("fork manager", () => {
 		});
 		expect(mocks.children[0].stopCalls).toBe(1);
 		expect(settled).toHaveLength(1);
+	});
+
+	it("waits for cleanup when prompt failure follows leader exit", async () => {
+		let releaseCleanup!: () => void;
+		mocks.stopGate = new Promise<void>((resolve) => {
+			releaseCleanup = resolve;
+		});
+		mocks.promptError = new Error("prompt failed");
+		mocks.exitBeforePromptError = true;
+		const manager = createManager();
+		const starting = manager.start(context, "work", launchOptions);
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mocks.children[0].stopCalls).toBe(1);
+		let rejected = false;
+		void starting.catch(() => {
+			rejected = true;
+		});
+		await Promise.resolve();
+		expect(rejected).toBe(false);
+
+		releaseCleanup();
+		await expect(starting).rejects.toThrow("prompt failed");
 	});
 
 	it("reports a startup failure exactly once", async () => {

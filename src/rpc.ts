@@ -109,16 +109,7 @@ export class RpcChild {
 
 		child.stdout?.on("data", (chunk: Buffer | string) => this.consumeStdout(chunk));
 		child.stdout?.once("end", () => this.flushStdout());
-		child.stderr?.on("data", (chunk: Buffer | string) => {
-			const stderr = Buffer.concat([Buffer.from(this.stderr), Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
-			if (stderr.length <= MAX_STDERR_BYTES) {
-				this.stderr = stderr.toString();
-				return;
-			}
-			let start = stderr.length - MAX_STDERR_BYTES;
-			while (start < stderr.length && (stderr[start] & 0xc0) === 0x80) start++;
-			this.stderr = stderr.subarray(start).toString();
-		});
+		child.stderr?.on("data", (chunk: Buffer | string) => this.appendStderr(chunk));
 		child.on("error", (error) => this.rejectPending(error));
 		child.stdin?.on("error", (error) => this.rejectPending(new Error(`Fork stdin error: ${error.message}`)));
 		child.once("exit", (code, signal) => this.handleExit({ code, signal }));
@@ -218,6 +209,17 @@ export class RpcChild {
 		}
 
 		return pending;
+	}
+
+	private appendStderr(chunk: Buffer | string): void {
+		const stderr = Buffer.concat([Buffer.from(this.stderr), Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+		if (stderr.length <= MAX_STDERR_BYTES) {
+			this.stderr = stderr.toString();
+			return;
+		}
+		let start = stderr.length - MAX_STDERR_BYTES;
+		while (start < stderr.length && (stderr[start] & 0xc0) === 0x80) start++;
+		this.stderr = stderr.subarray(start).toString();
 	}
 
 	private consumeStdout(chunk: Buffer | string): void {

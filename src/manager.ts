@@ -173,7 +173,10 @@ export class ForkManager {
 			return this.snapshot(fork);
 		} catch (error) {
 			fork.stopRequested = true;
-			if (fork.child?.isAlive()) await fork.child.stop().catch(() => undefined);
+			if (fork.child) {
+				fork.cleanup ??= fork.child.stop().catch(() => undefined);
+				await fork.cleanup;
+			}
 			fork.stopRequested = false;
 			this.fail(fork, errorText(error));
 			if (!this.shuttingDown) this.settle(fork);
