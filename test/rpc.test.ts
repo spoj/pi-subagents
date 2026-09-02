@@ -58,7 +58,7 @@ describe("RPC child", () => {
 		expect(events).toEqual([]);
 	});
 
-	it("stops the process group after the leader has exited", async () => {
+	it.skipIf(process.platform === "win32")("stops the process group after the leader has exited", async () => {
 		vi.useFakeTimers();
 		const kill = vi.spyOn(process, "kill").mockImplementation(((pid: number, signal?: NodeJS.Signals | number) => {
 			if (signal === 0) {
