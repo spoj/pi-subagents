@@ -61,7 +61,7 @@ export class RpcChild {
 	private requestNumber = 0;
 	private buffer = "";
 	private decoder = new StringDecoder("utf8");
-	private stderr = "";
+	private stderr = Buffer.alloc(0);
 
 	constructor(
 		private readonly cwd: string,
@@ -78,7 +78,7 @@ export class RpcChild {
 	}
 
 	getStderr(): string {
-		return this.stderr;
+		return this.stderr.toString("utf8");
 	}
 
 	onEvent(listener: ChildEventListener): () => void {
@@ -140,6 +140,7 @@ export class RpcChild {
 		if (!child && !this.pid) return Promise.resolve();
 
 		this.stopPromise = new Promise<void>((resolve) => {
+			child?.stdin?.destroy();
 			child?.stdout?.destroy();
 			child?.stderr?.destroy();
 			if (process.platform === "win32") {
@@ -212,14 +213,9 @@ export class RpcChild {
 	}
 
 	private appendStderr(chunk: Buffer | string): void {
-		const stderr = Buffer.concat([Buffer.from(this.stderr), Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
-		if (stderr.length <= MAX_STDERR_BYTES) {
-			this.stderr = stderr.toString();
-			return;
-		}
-		let start = stderr.length - MAX_STDERR_BYTES;
-		while (start < stderr.length && (stderr[start] & 0xc0) === 0x80) start++;
-		this.stderr = stderr.subarray(start).toString();
+		const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+		const stderr = Buffer.concat([this.stderr, bytes]);
+		this.stderr = stderr.length <= MAX_STDERR_BYTES ? stderr : stderr.subarray(-MAX_STDERR_BYTES);
 	}
 
 	private consumeStdout(chunk: Buffer | string): void {

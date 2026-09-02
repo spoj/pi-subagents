@@ -39,6 +39,17 @@ describe("RPC child", () => {
 		expect(child.getStderr()).toMatch(/newest:終$/);
 	});
 
+	it("preserves multibyte stderr split across chunks", () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+
+		const bytes = Buffer.from("終");
+		internals.appendStderr(bytes.subarray(0, 1));
+		internals.appendStderr(bytes.subarray(1));
+
+		expect(child.getStderr()).toBe("終");
+	});
+
 	it("retains the spawned process ID after exit", () => {
 		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
 		const internals = child as unknown as RpcChildInternals;
@@ -148,10 +159,12 @@ describe("RPC child", () => {
 			const child = new RpcChild("/tmp", "/tmp/session.jsonl");
 			const internals = child as unknown as RpcChildInternals;
 			const signals: NodeJS.Signals[] = [];
+			const stdin = { destroy: vi.fn() };
 			const stdout = { destroy: vi.fn() };
 			const stderr = { destroy: vi.fn() };
 			internals.process = {
 				exitCode: null,
+				stdin,
 				stdout,
 				stderr,
 				once: () => undefined,
@@ -163,6 +176,7 @@ describe("RPC child", () => {
 			await vi.advanceTimersByTimeAsync(1000);
 			expect(signals).toEqual(["SIGTERM", "SIGKILL"]);
 			await stopping;
+			expect(stdin.destroy).toHaveBeenCalledOnce();
 			expect(stdout.destroy).toHaveBeenCalledOnce();
 			expect(stderr.destroy).toHaveBeenCalledOnce();
 			expect(child.isAlive()).toBe(false);
