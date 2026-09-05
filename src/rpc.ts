@@ -55,6 +55,7 @@ export class RpcChild {
 	private process: ChildProcess | undefined;
 	private pid?: number;
 	private exited = false;
+	private exitStatus?: ChildExit;
 	private stopPromise?: Promise<void>;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<ChildEventListener>();
@@ -71,7 +72,7 @@ export class RpcChild {
 	) {}
 
 	isAlive(): boolean {
-		return this.process !== undefined && !this.exited && this.process.exitCode === null;
+		return this.process !== undefined && !this.exited && !this.exitStatus && this.process.exitCode === null;
 	}
 
 	getPid(): number {
@@ -283,13 +284,18 @@ export class RpcChild {
 	}
 
 	private handleExit(exit: ChildExit): void {
-		if (this.process === undefined || this.exited) return;
-		this.exited = true;
-		const error = new Error(
-			`Fork process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
-		);
-		this.rejectPending(error);
-		for (const listener of this.exitListeners) listener(exit);
+		if (this.process === undefined || this.exited || this.exitStatus) return;
+		this.exitStatus = exit;
+		// Drain queued stdio without waiting for inherited pipes to close.
+		setImmediate(() => {
+			this.exitStatus = undefined;
+			this.exited = true;
+			const error = new Error(
+				`Fork process exited${exit.code === null ? ` with ${exit.signal ?? "no status"}` : ` with code ${exit.code}`}`,
+			);
+			this.rejectPending(error);
+			for (const listener of this.exitListeners) listener(exit);
+		});
 	}
 
 	private rejectPending(error: Error): void {

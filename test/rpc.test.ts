@@ -87,17 +87,37 @@ describe("RPC child", () => {
 		expect(stderr.destroy).toHaveBeenCalledOnce();
 	});
 
-	it("ignores events after the child exits", () => {
+	it("drains queued stdout before notifying exit listeners without waiting for stream close", async () => {
 		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
 		const internals = child as unknown as RpcChildInternals;
 		const events: unknown[] = [];
+		const exits: ChildExit[] = [];
 		child.onEvent((event) => events.push(event));
+		child.onExit((exit) => exits.push(exit));
 		internals.process = {};
 		internals.handleExit({ code: 1, signal: null });
 
 		internals.processLine(JSON.stringify({ type: "turn_start" }));
 
-		expect(events).toEqual([]);
+		expect(events).toEqual([{ type: "turn_start" }]);
+		expect(exits).toEqual([]);
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		expect(exits).toEqual([{ code: 1, signal: null }]);
+	});
+
+	it("drains stderr before notifying exit listeners", async () => {
+		const child = new RpcChild("/tmp", "/tmp/session.jsonl");
+		const internals = child as unknown as RpcChildInternals;
+		let stderrAtExit = "";
+		child.onExit(() => {
+			stderrAtExit = child.getStderr();
+		});
+		internals.process = {};
+		internals.handleExit({ code: 1, signal: null });
+		internals.appendStderr("diagnostic");
+
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		expect(stderrAtExit).toBe("diagnostic");
 	});
 
 	it.skipIf(process.platform === "win32")("stops the process group after the leader has exited", async () => {
