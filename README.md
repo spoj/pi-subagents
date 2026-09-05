@@ -33,18 +33,9 @@ Fork model and thinking-level selection follows this order independently:
 
 Forks do not fall back to model or thinking-level entries persisted in the forked session or to Pi's ordinary defaults.
 
-Each child gets a new session file containing the parent session's path up to the current `Fork` call, then receives a new user message:
+Each child gets a new session file containing the parent session's path up to the current `Fork` call, then receives a new user message wrapped in `<delegated-task>`. The wrapper tells the child to treat inherited history as reference context, execute only the new task, and return a dense internal handoff; an explicit `cwd` also adds a working-directory notice.
 
-```text
-<delegated-task>
-This user message marks the fork point. Treat the inherited conversation as established reference context, not as a live conversation to continue. Execute only the task below. Do not restate facts, structure, or reasoning already clear from the inherited conversation. Focus on new findings, corrections, implications, and the requested output. If the task requires a self-contained result, include only the minimum inherited background needed.
-
-Task:
-...
-</delegated-task>
-```
-
-The extension appends fork-tool and child-role guidance to the system prompt in both parent and child processes, while the `<delegated-task>` message provides the task-specific context and reporting guidance. It identifies a user message containing `<delegated-task>` as the delegated task marker. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
+The extension appends fork-tool and child-role guidance to the system prompt in both parent and child processes. The `<delegated-task>` wrapper is model-facing guidance, not programmatic role detection: `PI_FORK_CHILD=1` marks spawned child processes and is what enforces the child tool restriction. All three tools are registered in both processes with identical schemas; a child rejects them only if the model tries to execute one. This keeps the request surface stable while preventing recursive delegation.
 
 When a child settles, the parent immediately receives its status, ID, transcript path, and final text in a steering message. The parent can inspect the full transcripts with Pi's existing `read` tool. A compact human-only widget shows known child activity.
 
